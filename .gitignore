@@ -1,0 +1,10 @@
+.preview_deps/
+.preview_deps_old/
+.venv/
+.uv-cache/
+.uv-python/
+.git-rentwise/
+__pycache__/
+*.pyc
+rentwise_lite.db
+uploaded_documents/
