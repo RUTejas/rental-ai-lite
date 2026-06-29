@@ -13,13 +13,18 @@ Created and Developed by Tejas R U.
 
 ## Features
 
+- Premium public landing page with an original optimized rental hero image.
+- Working login and signup flows with password visibility controls and role-aware redirects.
+- Reusable responsive sidebar navigation, stats cards, status badges, data tables, empty states, modals, loading indicators, and toasts.
 - Admins create electricity and water bills for tenants assigned to their account.
+- Admins can add, edit, and remove only tenants assigned to their account, with confirmation before deletion.
 - Tenants mark their own bills as paid or not paid and add or edit a note.
 - Admins verify paid claims, mark bills unpaid or overdue, reject claims, waive bills, and add a note.
 - Master Admin sees all owners, tenants, statuses, timestamps, notes, and global bill metrics.
 - Server-side role and ownership checks protect every bill read and update.
 - Passwords are hashed with bcrypt and login sessions use signed, HTTP-only cookies.
 - PostgreSQL provides durable storage suitable for Vercel.
+- Invalid URLs render a branded 404 page.
 
 ## Status model
 
