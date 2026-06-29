@@ -1,480 +1,220 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Activity, ArrowRight, BadgeIndianRupee, Bell, Building2, Check, ChevronRight,
+  CircleDollarSign, Droplets, Eye, EyeOff, FileCheck2, Gauge, Home, LayoutDashboard,
+  Loader2, LogOut, Menu, Pencil, Plus, ReceiptText, ShieldCheck, Sparkles,
+  Trash2, UserRound, UsersRound, WalletCards, X, Zap
+} from "lucide-react";
 
 type Role = "MASTER_ADMIN" | "ADMIN" | "TENANT";
 type SessionUser = { id: string; name: string; email: string; role: Role };
 type Person = { id: string; name: string; email: string };
 type TenantStatus = "NOT_MARKED" | "TENANT_MARKED_PAID" | "TENANT_MARKED_NOT_PAID";
-type AdminStatus =
-  | "PENDING"
-  | "VERIFIED_PAID"
-  | "UNPAID"
-  | "OVERDUE"
-  | "WAIVED"
-  | "REJECTED_CLAIM";
-
+type AdminStatus = "PENDING" | "VERIFIED_PAID" | "UNPAID" | "OVERDUE" | "WAIVED" | "REJECTED_CLAIM";
+type View = "overview" | "bills" | "tenants";
 type Bill = {
-  id: string;
-  adminId: string;
-  tenantId: string;
-  billType: "ELECTRICITY" | "WATER";
-  billingMonth: number;
-  billingYear: number;
-  amount: number;
-  dueDate: string;
-  tenantPaymentStatus: TenantStatus;
-  tenantMarkedAt: string | null;
-  tenantNote: string | null;
-  adminVerificationStatus: AdminStatus;
-  adminVerifiedAt: string | null;
-  adminNote: string | null;
-  remarks: string | null;
-  admin: Person;
-  tenant: Person;
+  id: string; adminId: string; tenantId: string; billType: "ELECTRICITY" | "WATER";
+  billingMonth: number; billingYear: number; amount: number; dueDate: string;
+  tenantPaymentStatus: TenantStatus; tenantMarkedAt: string | null; tenantNote: string | null;
+  adminVerificationStatus: AdminStatus; adminVerifiedAt: string | null; adminNote: string | null;
+  remarks: string | null; admin: Person; tenant: Person;
 };
 
-const tenantLabels: Record<TenantStatus, string> = {
-  NOT_MARKED: "Not Marked",
-  TENANT_MARKED_PAID: "Tenant Marked Paid",
-  TENANT_MARKED_NOT_PAID: "Tenant Marked Not Paid"
-};
-
-const adminLabels: Record<AdminStatus, string> = {
-  PENDING: "Pending",
-  VERIFIED_PAID: "Verified Paid",
-  UNPAID: "Unpaid",
-  OVERDUE: "Overdue",
-  WAIVED: "Waived",
-  REJECTED_CLAIM: "Rejected Claim"
-};
-
-const monthNames = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
-
-const demoAccounts = [
-  ["Master Admin", "master@rentwise.ai", "Master@12345"],
-  ["Owner", "aarav.owner@rentwise.ai", "Owner@12345"],
-  ["Tenant", "priya.tenant@rentwise.ai", "Tenant@12345"]
+const tenantLabels: Record<TenantStatus, string> = { NOT_MARKED: "Not marked", TENANT_MARKED_PAID: "Marked paid", TENANT_MARKED_NOT_PAID: "Not paid" };
+const adminLabels: Record<AdminStatus, string> = { PENDING: "Pending", VERIFIED_PAID: "Verified paid", UNPAID: "Unpaid", OVERDUE: "Overdue", WAIVED: "Waived", REJECTED_CLAIM: "Rejected claim" };
+const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const demos = [
+  ["Master Admin", "master@rentwise.ai", "Master@12345", ShieldCheck],
+  ["Owner", "aarav.owner@rentwise.ai", "Owner@12345", Building2],
+  ["Tenant", "priya.tenant@rentwise.ai", "Tenant@12345", UserRound]
 ] as const;
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
-}
-
-function date(value: string | null) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value));
-}
-
-async function jsonRequest<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers }
-  });
+const money = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+const date = (value: string | null) => value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value)) : "—";
+async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Something went wrong.");
   return data;
 }
 
-function Badge({ kind, children }: { kind: string; children: React.ReactNode }) {
-  return <span className={`badge badge-${kind.toLowerCase()}`}>{children}</span>;
-}
-
-function Metric({ label, value, note }: { label: string; value: number | string; note: string }) {
-  return (
-    <article className="metric-card">
-      <p>{label}</p>
-      <strong>{value}</strong>
-      <span>{note}</span>
-    </article>
-  );
-}
-
 export function RentWiseApp() {
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [loading, setLoading] = useState(true);
   const [bills, setBills] = useState<Bill[]>([]);
   const [tenants, setTenants] = useState<Person[]>([]);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [initializing, setInitializing] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<View>("overview");
+  const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [mobileNav, setMobileNav] = useState(false);
 
-  const loadBills = useCallback(async () => {
-    const data = await jsonRequest<{ bills: Bill[] }>("/api/bills");
-    setBills(data.bills);
+  const notify = useCallback((type: "success" | "error", text: string) => {
+    setToast({ type, text }); window.setTimeout(() => setToast(null), 4200);
+  }, []);
+  const loadData = useCallback(async (current: SessionUser) => {
+    const data = await request<{ bills: Bill[] }>("/api/bills"); setBills(data.bills);
+    if (current.role === "ADMIN") {
+      const people = await request<{ tenants: Person[] }>("/api/tenants"); setTenants(people.tenants);
+    }
   }, []);
 
   useEffect(() => {
-    jsonRequest<{ user: SessionUser | null }>("/api/auth/session")
-      .then(async ({ user: current }) => {
-        setUser(current);
-        if (current) {
-          const tasks: Promise<unknown>[] = [loadBills()];
-          if (current.role === "ADMIN") {
-            tasks.push(
-              jsonRequest<{ tenants: Person[] }>("/api/tenants").then((data) => setTenants(data.tenants))
-            );
-          }
-          await Promise.all(tasks);
-        }
-      })
-      .catch((caught) => setError(caught.message))
-      .finally(() => setLoading(false));
-  }, [loadBills]);
+    request<{ user: SessionUser | null }>("/api/auth/session")
+      .then(async ({ user: current }) => { setUser(current); if (current) await loadData(current); })
+      .catch((error) => notify("error", error.message))
+      .finally(() => setInitializing(false));
+  }, [loadData, notify]);
 
-  async function login(email: string, password: string) {
-    setError("");
-    setLoading(true);
+  async function authenticate(payload: Record<string, unknown>, mode: "login" | "signup") {
+    setBusy(true);
     try {
-      const data = await jsonRequest<{ user: SessionUser }>("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password })
-      });
-      setUser(data.user);
-      await loadBills();
-      if (data.user.role === "ADMIN") {
-        const tenantData = await jsonRequest<{ tenants: Person[] }>("/api/tenants");
-        setTenants(tenantData.tenants);
-      }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to sign in.");
-    } finally {
-      setLoading(false);
-    }
+      const data = await request<{ user: SessionUser }>(`/api/auth/${mode}`, { method: "POST", body: JSON.stringify(payload) });
+      setUser(data.user); setAuthMode(null); setView("overview"); await loadData(data.user);
+      notify("success", `Welcome ${data.user.name}. Your dashboard is ready.`);
+      window.history.replaceState({}, "", `/#${data.user.role.toLowerCase()}-dashboard`);
+    } catch (error) { notify("error", error instanceof Error ? error.message : "Unable to continue."); }
+    finally { setBusy(false); }
   }
-
   async function logout() {
-    await jsonRequest("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    setBills([]);
-    setTenants([]);
+    setBusy(true); await request("/api/auth/logout", { method: "POST" });
+    setUser(null); setBills([]); setTenants([]); setView("overview"); setMobileNav(false); setBusy(false);
+    window.history.replaceState({}, "", "/"); notify("success", "You have signed out safely.");
   }
 
-  function flash(message: string) {
-    setNotice(message);
-    window.setTimeout(() => setNotice(""), 3500);
-  }
-
-  if (loading && !user) return <div className="loading-screen">Preparing your rental ledger…</div>;
-  if (!user) return <LoginScreen onLogin={login} error={error} loading={loading} />;
-
+  if (initializing) return <LoadingScreen />;
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-mark">RW</div>
-        <div>
-          <p className="eyebrow">Rental clarity</p>
-          <h1>RentWise Lite</h1>
-        </div>
-        <nav>
-          <a href="#overview">Overview</a>
-          <a href="#bills">
-            {user.role === "TENANT"
-              ? "My Bills"
-              : user.role === "MASTER_ADMIN"
-                ? "All Utility Bills"
-                : "Utility Bills"}
-          </a>
-          {user.role === "ADMIN" && <a href="#new-bill">Add Bill</a>}
-        </nav>
-        <div className="sidebar-user">
-          <span>{user.role.replace("_", " ")}</span>
-          <strong>{user.name}</strong>
-          <small>{user.email}</small>
-          <button className="text-button" onClick={logout}>Sign out</button>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">Welcome back, {user.name.split(" ")[0]}</p>
-            <h2>{headingFor(user.role)}</h2>
-            <p>{subtitleFor(user.role)}</p>
-          </div>
-          <div className="header-seal">Created and Developed by Tejas R U</div>
-        </header>
-
-        {error && <div className="alert alert-error">{error}</div>}
-        {notice && <div className="alert alert-success">{notice}</div>}
-
-        <section id="overview">
-          <RoleMetrics role={user.role} bills={bills} />
-        </section>
-
-        {user.role === "ADMIN" && (
-          <CreateBill
-            tenants={tenants}
-            onCreated={(bill) => {
-              setBills((current) => [bill, ...current]);
-              flash("Utility bill added and ready for the tenant to review.");
-            }}
-            onError={setError}
-          />
-        )}
-
-        <section id="bills" className="panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Two-stage record</p>
-              <h3>{user.role === "TENANT" ? "My Bills" : user.role === "ADMIN" ? "Tenant Utility Bills" : "All Utility Bills"}</h3>
-            </div>
-            <p>Tenant payment status is self-reported. Admin verification is the final record status.</p>
-          </div>
-
-          {bills.length === 0 ? (
-            <div className="empty-state">No utility bills have been added yet.</div>
-          ) : user.role === "TENANT" ? (
-            <TenantBills
-              bills={bills}
-              onUpdated={(updated) => {
-                setBills((current) => current.map((bill) => bill.id === updated.id ? updated : bill));
-                flash("Your status was saved for your owner to review.");
-              }}
-              onError={setError}
-            />
-          ) : (
-            <BillTable
-              role={user.role}
-              bills={bills}
-              onUpdated={(updated) => {
-                setBills((current) => current.map((bill) => bill.id === updated.id ? updated : bill));
-                flash("Admin verification status updated.");
-              }}
-              onError={setError}
-            />
-          )}
-        </section>
-
-        <footer>RentWise Lite · Created and Developed by Tejas R U · Manual tracking only—no online payments.</footer>
-      </main>
-    </div>
+    <>
+      {user ? (
+        <Dashboard
+          user={user} bills={bills} tenants={tenants} view={view} mobileNav={mobileNav}
+          setMobileNav={setMobileNav} setView={setView} onLogout={logout} onNotify={notify}
+          setBills={setBills} setTenants={setTenants}
+        />
+      ) : <Landing onAuth={setAuthMode} />}
+      {authMode && <AuthModal mode={authMode} setMode={setAuthMode} busy={busy} onSubmit={authenticate} />}
+      {busy && <div className="global-busy"><Loader2 size={22} className="spin" /> Working…</div>}
+      {toast && <div className={`toast toast-${toast.type}`} role="status">{toast.type === "success" ? <Check size={18} /> : <Activity size={18} />}{toast.text}</div>}
+    </>
   );
 }
 
-function LoginScreen({
-  onLogin,
-  error,
-  loading
-}: {
-  onLogin: (email: string, password: string) => Promise<void>;
-  error: string;
-  loading: boolean;
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    void onLogin(email, password);
-  }
-
-  return (
-    <main className="login-page">
-      <section className="login-story">
-        <div className="brand-mark large">RW</div>
-        <p className="eyebrow">RentWise Lite</p>
-        <h1>A calmer way to keep rental bills clear.</h1>
-        <p>Tenants report. Owners verify. Master Admin sees the full picture—without turning your home into a payment platform.</p>
-        <div className="promise-row"><span>01</span> Self-reported tenant status</div>
-        <div className="promise-row"><span>02</span> Final owner verification</div>
-        <div className="promise-row"><span>03</span> Strict account-level visibility</div>
-      </section>
-      <section className="login-card">
-        <p className="eyebrow">Secure portal</p>
-        <h2>Sign in</h2>
-        <p>Use an approved RentWise account.</p>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={submit}>
-          <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
-          <button className="primary-button" disabled={loading}>{loading ? "Signing in…" : "Enter RentWise"}</button>
-        </form>
-        <div className="demo-logins">
-          <span>Seeded demo accounts</span>
-          {demoAccounts.map(([label, demoEmail, demoPassword]) => (
-            <button key={label} onClick={() => { setEmail(demoEmail); setPassword(demoPassword); }}>{label}</button>
-          ))}
-        </div>
-        <small>Created and Developed by Tejas R U</small>
-      </section>
-    </main>
-  );
-}
-
-function RoleMetrics({ role, bills }: { role: Role; bills: Bill[] }) {
-  const metrics = useMemo(() => {
-    const count = (predicate: (bill: Bill) => boolean) => bills.filter(predicate).length;
-    if (role === "TENANT") {
-      const upcoming = [...bills]
-        .filter((bill) => bill.adminVerificationStatus !== "VERIFIED_PAID")
-        .sort((a, b) => +new Date(a.dueDate) - +new Date(b.dueDate))[0];
-      return [
-        ["Pending bills", count((bill) => bill.adminVerificationStatus === "PENDING"), "Awaiting final review"],
-        ["I marked paid", count((bill) => bill.tenantPaymentStatus === "TENANT_MARKED_PAID"), "Self-reported"],
-        ["Verified paid", count((bill) => bill.adminVerificationStatus === "VERIFIED_PAID"), "Confirmed by owner"],
-        ["Rejected", count((bill) => bill.adminVerificationStatus === "REJECTED_CLAIM"), "Needs follow-up"],
-        ["Next due", upcoming ? date(upcoming.dueDate) : "Clear", "Nearest open bill"]
-      ];
-    }
-    if (role === "ADMIN") {
-      return [
-        ["Claims to review", count((bill) => bill.tenantPaymentStatus === "TENANT_MARKED_PAID" && bill.adminVerificationStatus === "PENDING"), "Tenant marked paid"],
-        ["Verified paid", count((bill) => bill.adminVerificationStatus === "VERIFIED_PAID"), "Final record"],
-        ["Unpaid", count((bill) => bill.adminVerificationStatus === "UNPAID"), "Owner confirmed"],
-        ["Overdue", count((bill) => bill.adminVerificationStatus === "OVERDUE"), "Past due"],
-        ["Rejected", count((bill) => bill.adminVerificationStatus === "REJECTED_CLAIM"), "Claims declined"]
-      ];
-    }
-    return [
-      ["Total bills", bills.length, "Across all owners"],
-      ["Tenant marked paid", count((bill) => bill.tenantPaymentStatus === "TENANT_MARKED_PAID"), "Self-reported"],
-      ["Marked not paid", count((bill) => bill.tenantPaymentStatus === "TENANT_MARKED_NOT_PAID"), "Self-reported"],
-      ["Verified paid", count((bill) => bill.adminVerificationStatus === "VERIFIED_PAID"), "Owner confirmed"],
-      ["Unpaid / overdue", count((bill) => ["UNPAID", "OVERDUE"].includes(bill.adminVerificationStatus)), "Needs attention"],
-      ["Rejected claims", count((bill) => bill.adminVerificationStatus === "REJECTED_CLAIM"), "Owner declined"]
-    ];
-  }, [bills, role]);
-
-  return <div className="metrics-grid">{metrics.map(([label, value, note]) => <Metric key={label} label={String(label)} value={value} note={String(note)} />)}</div>;
-}
-
-function CreateBill({ tenants, onCreated, onError }: { tenants: Person[]; onCreated: (bill: Bill) => void; onError: (message: string) => void }) {
-  const today = new Date();
-  const [saving, setSaving] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setSaving(true);
-    onError("");
-    try {
-      const data = await jsonRequest<{ bill: Bill }>("/api/bills", {
-        method: "POST",
-        body: JSON.stringify({
-          tenantId: form.get("tenantId"),
-          billType: form.get("billType"),
-          billingMonth: Number(form.get("billingMonth")),
-          billingYear: Number(form.get("billingYear")),
-          amount: Number(form.get("amount")),
-          dueDate: new Date(`${form.get("dueDate")}T00:00:00.000Z`).toISOString(),
-          remarks: form.get("remarks")
-        })
-      });
-      onCreated(data.bill);
-      event.currentTarget.reset();
-    } catch (caught) {
-      onError(caught instanceof Error ? caught.message : "Unable to add the bill.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section id="new-bill" className="panel">
-      <div className="section-heading"><div><p className="eyebrow">Owner action</p><h3>Add a utility bill</h3></div><p>The selected tenant will see it immediately.</p></div>
-      {tenants.length === 0 ? <div className="empty-state">Add an approved tenant to your account before creating bills.</div> : (
-        <form className="bill-form" onSubmit={submit}>
-          <label>Tenant<select name="tenantId" required>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}</select></label>
-          <label>Bill type<select name="billType"><option value="ELECTRICITY">Electricity</option><option value="WATER">Water</option></select></label>
-          <label>Month<select name="billingMonth" defaultValue={today.getMonth() + 1}>{monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></label>
-          <label>Year<input name="billingYear" type="number" min="2020" max="2100" defaultValue={today.getFullYear()} required /></label>
-          <label>Amount (INR)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-          <label>Due date<input name="dueDate" type="date" required /></label>
-          <label className="wide">Remarks<input name="remarks" maxLength={1000} placeholder="Meter reading or billing context (optional)" /></label>
-          <button className="primary-button" disabled={saving}>{saving ? "Adding…" : "Add bill"}</button>
-        </form>
-      )}
+function Landing({ onAuth }: { onAuth: (mode: "login" | "signup") => void }) {
+  const scroll = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  return <main className="landing">
+    <nav className="landing-nav">
+      <button className="brand-button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><span>RW</span><b>RentWise Lite</b></button>
+      <div><button onClick={() => scroll("features")}>Features</button><button onClick={() => scroll("roles")}>For every role</button><button onClick={() => scroll("how")}>How it works</button></div>
+      <div className="nav-actions"><button className="ghost-btn" onClick={() => onAuth("login")}>Sign in</button><button className="gold-btn" onClick={() => onAuth("signup")}>Create account <ArrowRight size={16} /></button></div>
+    </nav>
+    <section className="hero">
+      <Image src="/rentwise-hero.png" alt="Warm contemporary rental apartment" fill priority sizes="100vw" />
+      <div className="hero-shade" />
+      <div className="hero-copy"><p className="kicker"><Sparkles size={15} /> Rental management, beautifully clear</p><h1>Your home records,<br /><em>finally in order.</em></h1><p>One calm place for owners and tenants to track utility bills, payment claims, verification, and rental readiness.</p><div className="hero-actions"><button className="gold-btn large" onClick={() => onAuth("signup")}>Start managing <ArrowRight size={18} /></button><button className="glass-btn" onClick={() => onAuth("login")}><Eye size={18} /> View demo</button></div></div>
+      <div className="hero-proof"><span><ShieldCheck /> Role-protected</span><span><Zap /> Real-time records</span><span><FileCheck2 /> Clear audit trail</span></div>
     </section>
-  );
+    <section className="feature-section" id="features"><p className="kicker">Made for real rental life</p><div className="section-title"><h2>Less chasing. More certainty.</h2><p>Every action has a clear owner, timestamp, status, and next step.</p></div><div className="feature-grid">
+      <Feature icon={ReceiptText} title="Utility bill clarity" text="Electricity and water records with separate tenant claims and owner verification." />
+      <Feature icon={UsersRound} title="Scoped tenant access" text="Owners see only their tenants. Tenants see only their own records." />
+      <Feature icon={Gauge} title="Useful dashboards" text="Live counts, payment states, and attention items instead of blank screens." />
+      <Feature icon={Bell} title="Immediate feedback" text="Loading states, confirmations, and helpful success or error messages." />
+    </div></section>
+    <section className="role-section" id="roles"><p className="kicker">One system · Three perspectives</p><h2>Everyone sees exactly what they need.</h2><div className="role-grid">
+      <RoleCard icon={ShieldCheck} label="Master Admin" text="Portfolio-wide oversight, owner summaries, and all utility records." onClick={() => onAuth("login")} />
+      <RoleCard icon={Building2} label="Admin / Owner" text="Add tenants and bills, review claims, and record final status." onClick={() => onAuth("login")} />
+      <RoleCard icon={UserRound} label="Tenant / User" text="See bills, add notes, and report paid or unpaid status." onClick={() => onAuth("login")} />
+    </div></section>
+    <section className="how-section" id="how"><div><p className="kicker">A clean four-step record</p><h2>From bill to verified status.</h2></div>{["Owner adds a bill", "Tenant reports payment", "Owner verifies the claim", "Master Admin monitors"].map((step, index) => <article key={step}><span>0{index + 1}</span><b>{step}</b></article>)}</section>
+    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><p>Premium rental clarity without online payment processing.</p><small>Created and Developed by Tejas R U</small></footer>
+  </main>;
 }
 
-function TenantBills({ bills, onUpdated, onError }: { bills: Bill[]; onUpdated: (bill: Bill) => void; onError: (message: string) => void }) {
-  const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(bills.map((bill) => [bill.id, bill.tenantNote || ""])));
-  const [saving, setSaving] = useState("");
+function Feature({ icon: Icon, title, text }: { icon: typeof Home; title: string; text: string }) { return <article className="feature-card"><span><Icon size={22} /></span><h3>{title}</h3><p>{text}</p></article>; }
+function RoleCard({ icon: Icon, label, text, onClick }: { icon: typeof Home; label: string; text: string; onClick: () => void }) { return <button className="role-card" onClick={onClick}><Icon size={25} /><h3>{label}</h3><p>{text}</p><span>Open demo <ChevronRight size={16} /></span></button>; }
 
-  async function update(bill: Bill, status: Exclude<TenantStatus, "NOT_MARKED">) {
-    setSaving(bill.id);
-    onError("");
-    try {
-      const data = await jsonRequest<{ bill: Bill }>(`/api/bills/${bill.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ tenantPaymentStatus: status, tenantNote: notes[bill.id] || "" })
-      });
-      onUpdated(data.bill);
-    } catch (caught) {
-      onError(caught instanceof Error ? caught.message : "Unable to save your status.");
-    } finally {
-      setSaving("");
-    }
-  }
+function AuthModal({ mode, setMode, busy, onSubmit }: { mode: "login" | "signup"; setMode: (mode: "login" | "signup" | null) => void; busy: boolean; onSubmit: (payload: Record<string, unknown>, mode: "login" | "signup") => void }) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [role, setRole] = useState<"ADMIN" | "TENANT">("TENANT");
+  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); onSubmit(Object.fromEntries(form), mode); }
+  return <div className="modal-backdrop" role="dialog" aria-modal="true"><section className="auth-modal"><button className="icon-button close" aria-label="Close" onClick={() => setMode(null)}><X /></button><div className="auth-brand"><span>RW</span><div><p className="kicker">Secure rental portal</p><h2>{mode === "login" ? "Welcome home." : "Create your account."}</h2></div></div>
+    <form onSubmit={submit}>
+      {mode === "signup" && <><label>Full name<input name="name" placeholder="Your full name" minLength={2} required /></label><div className="role-toggle"><button type="button" className={role === "TENANT" ? "active" : ""} onClick={() => setRole("TENANT")}>Tenant</button><button type="button" className={role === "ADMIN" ? "active" : ""} onClick={() => setRole("ADMIN")}>Owner / Admin</button></div><input type="hidden" name="role" value={role} />{role === "TENANT" && <label>Owner/admin email<input type="email" name="adminEmail" placeholder="owner@example.com" required /></label>}</>}
+      <label>Email address<input type="email" name="email" placeholder="you@example.com" autoComplete="email" required /></label>
+      <label>Password<div className="password-field"><input type={passwordVisible ? "text" : "password"} name="password" placeholder={mode === "signup" ? "At least 8 characters" : "Your password"} minLength={mode === "signup" ? 8 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" aria-label={passwordVisible ? "Hide password" : "Show password"} onClick={() => setPasswordVisible(!passwordVisible)}>{passwordVisible ? <EyeOff /> : <Eye />}</button></div></label>
+      <button className="primary-action" disabled={busy}>{busy ? <Loader2 className="spin" /> : mode === "login" ? "Sign in securely" : "Create account"}<ArrowRight size={17} /></button>
+    </form>
+    {mode === "login" && <div className="demo-panel"><span>One-click demo access</span>{demos.map(([label, email, password, Icon]) => <button key={label} onClick={() => onSubmit({ email, password }, "login")} disabled={busy}><Icon size={16} />{label}</button>)}</div>}
+    <p className="auth-switch">{mode === "login" ? "New to RentWise?" : "Already registered?"} <button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "Create account" : "Sign in"}</button></p>
+  </section></div>;
+}
 
-  return (
-    <div className="tenant-bills">
-      <div className="manual-note">This app does not process online payments. Your selection is a manual status update for your owner/admin to review.</div>
-      {bills.map((bill) => (
-        <article className="bill-card" key={bill.id}>
-          <div className="bill-card-top"><div><span>{bill.billType === "ELECTRICITY" ? "Electricity" : "Water"}</span><h4>{monthNames[bill.billingMonth - 1]} {bill.billingYear}</h4></div><strong>{money(bill.amount)}</strong></div>
-          <div className="bill-facts"><p><span>Due date</span>{date(bill.dueDate)}</p><p><span>Owner remarks</span>{bill.remarks || "—"}</p><p><span>Owner note</span>{bill.adminNote || "—"}</p></div>
-          <div className="status-pair"><div><span>Tenant self-status</span><Badge kind={bill.tenantPaymentStatus}>{tenantLabels[bill.tenantPaymentStatus]}</Badge><small>Marked {date(bill.tenantMarkedAt)}</small></div><div><span>Admin verified-status</span><Badge kind={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Badge><small>Verified {date(bill.adminVerifiedAt)}</small></div></div>
-          <label>Your note<textarea value={notes[bill.id] ?? bill.tenantNote ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [bill.id]: event.target.value }))} maxLength={1000} placeholder="Add a note for your owner" /></label>
-          <div className="button-row"><button className="primary-button" disabled={saving === bill.id} onClick={() => update(bill, "TENANT_MARKED_PAID")}>Mark as Paid</button><button className="secondary-button danger" disabled={saving === bill.id} onClick={() => update(bill, "TENANT_MARKED_NOT_PAID")}>Mark as Not Paid</button></div>
-        </article>
-      ))}
+function Dashboard({ user, bills, tenants, view, mobileNav, setMobileNav, setView, onLogout, onNotify, setBills, setTenants }: {
+  user: SessionUser; bills: Bill[]; tenants: Person[]; view: View; mobileNav: boolean;
+  setMobileNav: (open: boolean) => void; setView: (view: View) => void; onLogout: () => void;
+  onNotify: (type: "success" | "error", text: string) => void; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; setTenants: React.Dispatch<React.SetStateAction<Person[]>>;
+}) {
+  const nav = [{ id: "overview" as View, label: "Overview", icon: LayoutDashboard }, { id: "bills" as View, label: user.role === "TENANT" ? "My bills" : user.role === "MASTER_ADMIN" ? "All utility bills" : "Utility bills", icon: ReceiptText }, ...(user.role === "ADMIN" ? [{ id: "tenants" as View, label: "Tenants", icon: UsersRound }] : [])];
+  const changeView = (next: View) => { setView(next); setMobileNav(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  return <div className="dashboard-shell">
+    <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}><div className="dash-brand"><span>RW</span><div><b>RentWise Lite</b><small>Rental clarity</small></div><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X /></button></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => changeView(id)}><Icon size={19} />{label}</button>)}</nav><div className="side-help"><Sparkles size={18} /><b>Clear records, calmer rentals.</b><p>Every status is visible to the right people.</p></div><div className="side-user"><Avatar name={user.name} /><div><b>{user.name}</b><small>{roleName(user.role)}</small></div><button className="icon-button" onClick={onLogout} aria-label="Sign out"><LogOut size={18} /></button></div></aside>
+    {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
+    <main className="dashboard-main"><header className="dash-topbar"><button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu /></button><div><p>{roleName(user.role)} portal</p><h1>{viewTitle(view, user.role)}</h1></div><div className="top-actions"><button className="icon-button notification" aria-label="Notifications" onClick={() => onNotify("success", "You’re all caught up—no new notifications.")}><Bell /><span /></button><Avatar name={user.name} /></div></header>
+      {view === "overview" && <Overview user={user} bills={bills} tenants={tenants} onView={changeView} />}
+      {view === "bills" && <BillsView user={user} bills={bills} tenants={tenants} setBills={setBills} onNotify={onNotify} />}
+      {view === "tenants" && user.role === "ADMIN" && <TenantDirectory tenants={tenants} setTenants={setTenants} onNotify={onNotify} />}
+      <footer className="dash-footer">RentWise Lite · Manual status tracking only · Created and Developed by Tejas R U</footer>
+    </main>
+  </div>;
+}
+
+function Overview({ user, bills, tenants, onView }: { user: SessionUser; bills: Bill[]; tenants: Person[]; onView: (view: View) => void }) {
+  const pending = bills.filter((b) => b.adminVerificationStatus === "PENDING").length;
+  const paid = bills.filter((b) => b.adminVerificationStatus === "VERIFIED_PAID").length;
+  const attention = bills.filter((b) => ["UNPAID", "OVERDUE", "REJECTED_CLAIM"].includes(b.adminVerificationStatus)).length;
+  const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
+  return <div className="view-stack"><section className="welcome-card"><div><p className="kicker">Good to see you, {user.name.split(" ")[0]}</p><h2>{overviewHeading(user.role)}</h2><p>{overviewText(user.role)}</p><button onClick={() => onView("bills")}>Review utility records <ArrowRight size={17} /></button></div><div className="welcome-art"><Home size={55} /><span>{bills.length} active records</span></div></section>
+    <section className="stats-grid"><Stat icon={ReceiptText} label="Utility records" value={bills.length} note="Electricity and water" /><Stat icon={WalletCards} label="Total billed" value={money(total)} note="Current visible records" /><Stat icon={Activity} label="Pending review" value={pending} note="Awaiting final status" /><Stat icon={Check} label="Verified paid" value={paid} note={attention ? `${attention} need attention` : "Nothing overdue"} /></section>
+    <div className="overview-grid"><section className="content-card wide"><CardHeader icon={Activity} title="Recent activity" action="View all" onClick={() => onView("bills")} />{bills.length ? <div className="activity-list">{bills.slice(0, 4).map((bill) => <article key={bill.id}><span className={`bill-icon ${bill.billType.toLowerCase()}`}>{bill.billType === "WATER" ? <Droplets /> : <Zap />}</span><div><b>{bill.billType === "WATER" ? "Water" : "Electricity"} · {bill.tenant.name}</b><small>{months[bill.billingMonth - 1]} {bill.billingYear} · Due {date(bill.dueDate)}</small></div><Status type={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Status><strong>{money(bill.amount)}</strong></article>)}</div> : <EmptyState icon={ReceiptText} title="No utility records yet" text="New bills and updates will appear here." />}</section>
+      <section className="content-card"><CardHeader icon={ShieldCheck} title="Rental readiness" /> <Readiness user={user} bills={bills} tenants={tenants} /></section>
     </div>
-  );
+    {user.role === "MASTER_ADMIN" && <AdminSummary bills={bills} />}
+    <section className="info-strip"><article><FileCheck2 /><div><b>Agreement details</b><p>Secure agreement storage is ready for the next module.</p></div><Status type="PENDING">Not configured</Status></article><article><ShieldCheck /><div><b>ID documents</b><p>No document upload is required for utility tracking.</p></div><Status type="VERIFIED_PAID">Portal secure</Status></article></section>
+  </div>;
 }
 
-function BillTable({ role, bills, onUpdated, onError }: { role: "ADMIN" | "MASTER_ADMIN"; bills: Bill[]; onUpdated: (bill: Bill) => void; onError: (message: string) => void }) {
-  const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(bills.map((bill) => [bill.id, bill.adminNote || ""])));
-  const [saving, setSaving] = useState("");
+function Stat({ icon: Icon, label, value, note }: { icon: typeof Home; label: string; value: string | number; note: string }) { return <article className="stat-card"><span><Icon /></span><p>{label}</p><strong>{value}</strong><small>{note}</small></article>; }
+function CardHeader({ icon: Icon, title, action, onClick }: { icon: typeof Home; title: string; action?: string; onClick?: () => void }) { return <header className="card-header"><h3><Icon size={19} />{title}</h3>{action && <button onClick={onClick}>{action}<ChevronRight size={15} /></button>}</header>; }
+function Readiness({ user, bills, tenants }: { user: SessionUser; bills: Bill[]; tenants: Person[] }) { const complete = bills.filter((b) => b.adminVerificationStatus === "VERIFIED_PAID").length; const score = bills.length ? Math.round((complete / bills.length) * 100) : 0; return <div className="readiness"><div className="score-ring" style={{ "--score": `${score * 3.6}deg` } as React.CSSProperties}><span>{score}%</span></div><h4>{score >= 80 ? "Records in excellent shape" : score ? "Verification in progress" : "Ready to get started"}</h4><p>{user.role === "ADMIN" ? `${tenants.length} tenant accounts connected.` : `${complete} of ${bills.length} visible records verified.`}</p></div>; }
+function AdminSummary({ bills }: { bills: Bill[] }) { const groups = Object.values(bills.reduce<Record<string, { admin: Person; bills: Bill[] }>>((acc, bill) => { acc[bill.adminId] ||= { admin: bill.admin, bills: [] }; acc[bill.adminId].bills.push(bill); return acc; }, {})); return <section className="content-card"><CardHeader icon={Building2} title="Admin-wise summary" /><div className="admin-summary">{groups.length ? groups.map((group) => <article key={group.admin.id}><Avatar name={group.admin.name} /><div><b>{group.admin.name}</b><small>{group.admin.email}</small></div><span>{group.bills.length} bills</span><strong>{money(group.bills.reduce((sum, bill) => sum + bill.amount, 0))}</strong></article>) : <EmptyState icon={Building2} title="No admin activity" text="Owner activity will appear here." />}</div></section>; }
 
-  async function verify(bill: Bill, status: Exclude<AdminStatus, "PENDING">) {
-    setSaving(bill.id);
-    onError("");
-    try {
-      const data = await jsonRequest<{ bill: Bill }>(`/api/bills/${bill.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ adminVerificationStatus: status, adminNote: notes[bill.id] || "" })
-      });
-      onUpdated(data.bill);
-    } catch (caught) {
-      onError(caught instanceof Error ? caught.message : "Unable to update verification.");
-    } finally {
-      setSaving("");
-    }
-  }
-
-  return (
-    <div className="table-scroll">
-      <table>
-        <thead><tr>{role === "MASTER_ADMIN" && <th>Admin</th>}<th>Tenant / bill</th><th>Amount / due</th><th>Tenant self-status</th><th>Admin verified-status</th><th>Notes</th>{role === "ADMIN" && <th>Actions</th>}</tr></thead>
-        <tbody>{bills.map((bill) => (
-          <tr key={bill.id}>
-            {role === "MASTER_ADMIN" && <td><strong>{bill.admin.name}</strong><small>{bill.admin.email}</small></td>}
-            <td><strong>{bill.tenant.name}</strong><small>{bill.billType === "ELECTRICITY" ? "Electricity" : "Water"} · {monthNames[bill.billingMonth - 1]} {bill.billingYear}</small></td>
-            <td><strong>{money(bill.amount)}</strong><small>Due {date(bill.dueDate)}</small></td>
-            <td><Badge kind={bill.tenantPaymentStatus}>{tenantLabels[bill.tenantPaymentStatus]}</Badge><small>{date(bill.tenantMarkedAt)}</small></td>
-            <td><Badge kind={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Badge><small>{date(bill.adminVerifiedAt)}</small></td>
-            <td><small><b>Tenant:</b> {bill.tenantNote || "—"}</small><small><b>Admin:</b> {bill.adminNote || "—"}</small></td>
-            {role === "ADMIN" && <td className="action-cell"><textarea aria-label={`Admin note for ${bill.tenant.name}`} value={notes[bill.id] ?? bill.adminNote ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [bill.id]: event.target.value }))} placeholder="Admin note" maxLength={1000} /><div className="action-grid"><button disabled={saving === bill.id} onClick={() => verify(bill, "VERIFIED_PAID")}>Verify as Paid</button><button disabled={saving === bill.id} onClick={() => verify(bill, "UNPAID")}>Mark Unpaid</button><button disabled={saving === bill.id} onClick={() => verify(bill, "OVERDUE")}>Mark Overdue</button><button disabled={saving === bill.id} onClick={() => verify(bill, "REJECTED_CLAIM")}>Reject Claim</button><button disabled={saving === bill.id} onClick={() => verify(bill, "WAIVED")}>Waive Bill</button></div></td>}
-          </tr>
-        ))}</tbody>
-      </table>
-    </div>
-  );
+function BillsView({ user, bills, tenants, setBills, onNotify }: { user: SessionUser; bills: Bill[]; tenants: Person[]; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; onNotify: (type: "success" | "error", text: string) => void }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const update = (bill: Bill) => setBills((current) => current.map((item) => item.id === bill.id ? bill : item));
+  return <div className="view-stack"><section className="view-heading"><div><p className="kicker">Payment records</p><h2>{user.role === "TENANT" ? "My utility bills" : user.role === "ADMIN" ? "Tenant utility bills" : "All utility bills"}</h2><p>Tenant status is self-reported. Owner verification remains the final record.</p></div>{user.role === "ADMIN" && <button className="primary-action compact" onClick={() => setShowCreate(true)}><Plus size={17} />Add bill</button>}</section>
+    {showCreate && <CreateBillModal tenants={tenants} onClose={() => setShowCreate(false)} onCreated={(bill) => { setBills((current) => [bill, ...current]); setShowCreate(false); onNotify("success", "Bill added for tenant review."); }} onError={(text) => onNotify("error", text)} />}
+    {bills.length === 0 ? <EmptyState icon={ReceiptText} title="No bills to show" text={user.role === "ADMIN" ? "Add the first utility bill for one of your tenants." : "Records will appear here when an owner adds them."} /> : user.role === "TENANT" ? <TenantBills bills={bills} onUpdated={update} onNotify={onNotify} /> : <BillTable role={user.role} bills={bills} onUpdated={update} onNotify={onNotify} />}
+  </div>;
 }
 
-function headingFor(role: Role) {
-  if (role === "TENANT") return "Your utility bills, without the guesswork.";
-  if (role === "ADMIN") return "Review every tenant claim with context.";
-  return "A complete view across every owner.";
-}
+function CreateBillModal({ tenants, onClose, onCreated, onError }: { tenants: Person[]; onClose: () => void; onCreated: (bill: Bill) => void; onError: (text: string) => void }) { const [saving, setSaving] = useState(false); async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); setSaving(true); try { const data = await request<{ bill: Bill }>("/api/bills", { method: "POST", body: JSON.stringify({ tenantId: form.get("tenantId"), billType: form.get("billType"), billingMonth: Number(form.get("billingMonth")), billingYear: Number(form.get("billingYear")), amount: Number(form.get("amount")), dueDate: new Date(`${form.get("dueDate")}T00:00:00.000Z`).toISOString(), remarks: form.get("remarks") }) }); onCreated(data.bill); } catch (error) { onError(error instanceof Error ? error.message : "Could not add bill."); } finally { setSaving(false); } } return <div className="modal-backdrop"><section className="form-modal"><button className="icon-button close" onClick={onClose} aria-label="Close"><X /></button><p className="kicker">New utility record</p><h2>Add a tenant bill</h2>{tenants.length ? <form className="modal-form" onSubmit={submit}><label>Tenant<select name="tenantId" required>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}</select></label><div className="form-row"><label>Bill type<select name="billType"><option value="ELECTRICITY">Electricity</option><option value="WATER">Water</option></select></label><label>Amount (INR)<input name="amount" type="number" min="1" step=".01" placeholder="1800" required /></label></div><div className="form-row"><label>Month<select name="billingMonth" defaultValue={new Date().getMonth() + 1}>{months.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></label><label>Year<input name="billingYear" type="number" defaultValue={new Date().getFullYear()} min="2020" max="2100" required /></label></div><label>Due date<input name="dueDate" type="date" required /></label><label>Remarks<textarea name="remarks" placeholder="Optional meter reading or billing context" /></label><button className="primary-action" disabled={saving}>{saving ? <Loader2 className="spin" /> : <Plus />}Add bill</button></form> : <EmptyState icon={UsersRound} title="No tenants available" text="Add a tenant before creating a bill." />}</section></div>; }
 
-function subtitleFor(role: Role) {
-  if (role === "TENANT") return "Mark what you have paid and follow your owner’s final verification.";
-  if (role === "ADMIN") return "Create bills, review self-reported payment status, and set the final record.";
-  return "Monitor all utility records while keeping each owner’s workflow intact.";
-}
+function TenantBills({ bills, onUpdated, onNotify }: { bills: Bill[]; onUpdated: (bill: Bill) => void; onNotify: (type: "success" | "error", text: string) => void }) { const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(bills.map((b) => [b.id, b.tenantNote || ""]))); const [saving, setSaving] = useState(""); async function update(bill: Bill, status: "TENANT_MARKED_PAID" | "TENANT_MARKED_NOT_PAID") { setSaving(bill.id); try { const data = await request<{ bill: Bill }>(`/api/bills/${bill.id}`, { method: "PATCH", body: JSON.stringify({ tenantPaymentStatus: status, tenantNote: notes[bill.id] || "" }) }); onUpdated(data.bill); onNotify("success", "Your payment status was saved for owner review."); } catch (error) { onNotify("error", error instanceof Error ? error.message : "Unable to update."); } finally { setSaving(""); } } return <div className="bill-card-grid">{bills.map((bill) => <article className="payment-card" key={bill.id}><header><span className={`bill-icon ${bill.billType.toLowerCase()}`}>{bill.billType === "WATER" ? <Droplets /> : <Zap />}</span><div><small>{bill.billType}</small><h3>{months[bill.billingMonth - 1]} {bill.billingYear}</h3></div><strong>{money(bill.amount)}</strong></header><div className="payment-meta"><span>Due <b>{date(bill.dueDate)}</b></span><span>Owner <b>{bill.admin.name}</b></span></div><div className="status-row"><div><small>Your status</small><Status type={bill.tenantPaymentStatus}>{tenantLabels[bill.tenantPaymentStatus]}</Status></div><div><small>Owner verification</small><Status type={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Status></div></div><label>Your note<textarea value={notes[bill.id] ?? ""} onChange={(e) => setNotes((current) => ({ ...current, [bill.id]: e.target.value }))} placeholder="Optional note for your owner" /></label><div className="card-actions"><button disabled={saving === bill.id} onClick={() => update(bill, "TENANT_MARKED_PAID")}><Check />Mark paid</button><button className="danger-soft" disabled={saving === bill.id} onClick={() => update(bill, "TENANT_MARKED_NOT_PAID")}><X />Not paid yet</button></div><p className="manual-disclaimer">Manual status only—this app does not process payments.</p></article>)}</div>; }
+
+function BillTable({ role, bills, onUpdated, onNotify }: { role: "ADMIN" | "MASTER_ADMIN"; bills: Bill[]; onUpdated: (bill: Bill) => void; onNotify: (type: "success" | "error", text: string) => void }) { const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(bills.map((b) => [b.id, b.adminNote || ""]))); const [saving, setSaving] = useState(""); async function verify(bill: Bill, status: Exclude<AdminStatus, "PENDING">) { setSaving(bill.id); try { const data = await request<{ bill: Bill }>(`/api/bills/${bill.id}`, { method: "PATCH", body: JSON.stringify({ adminVerificationStatus: status, adminNote: notes[bill.id] || "" }) }); onUpdated(data.bill); onNotify("success", `Bill marked ${adminLabels[status].toLowerCase()}.`); } catch (error) { onNotify("error", error instanceof Error ? error.message : "Unable to update."); } finally { setSaving(""); } } return <section className="content-card table-card"><div className="data-table-wrap"><table className="data-table"><thead><tr>{role === "MASTER_ADMIN" && <th>Owner</th>}<th>Tenant & bill</th><th>Amount & due</th><th>Tenant status</th><th>Final status</th><th>Notes</th>{role === "ADMIN" && <th>Actions</th>}</tr></thead><tbody>{bills.map((bill) => <tr key={bill.id}>{role === "MASTER_ADMIN" && <td><b>{bill.admin.name}</b><small>{bill.admin.email}</small></td>}<td><b>{bill.tenant.name}</b><small>{bill.billType === "WATER" ? "Water" : "Electricity"} · {months[bill.billingMonth - 1]} {bill.billingYear}</small></td><td><b>{money(bill.amount)}</b><small>Due {date(bill.dueDate)}</small></td><td><Status type={bill.tenantPaymentStatus}>{tenantLabels[bill.tenantPaymentStatus]}</Status><small>{date(bill.tenantMarkedAt)}</small></td><td><Status type={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Status><small>{date(bill.adminVerifiedAt)}</small></td><td><small><b>Tenant:</b> {bill.tenantNote || "—"}</small><small><b>Admin:</b> {bill.adminNote || "—"}</small></td>{role === "ADMIN" && <td className="action-cell"><textarea aria-label={`Admin note for ${bill.tenant.name}`} value={notes[bill.id] ?? ""} onChange={(e) => setNotes((current) => ({ ...current, [bill.id]: e.target.value }))} placeholder="Admin note" /><div><button disabled={saving === bill.id} onClick={() => verify(bill, "VERIFIED_PAID")}>Verify paid</button><button disabled={saving === bill.id} onClick={() => verify(bill, "UNPAID")}>Unpaid</button><button disabled={saving === bill.id} onClick={() => verify(bill, "OVERDUE")}>Overdue</button><button disabled={saving === bill.id} onClick={() => verify(bill, "REJECTED_CLAIM")}>Reject</button><button disabled={saving === bill.id} onClick={() => verify(bill, "WAIVED")}>Waive</button></div></td>}</tr>)}</tbody></table></div></section>; }
+
+function TenantDirectory({ tenants, setTenants, onNotify }: { tenants: Person[]; setTenants: React.Dispatch<React.SetStateAction<Person[]>>; onNotify: (type: "success" | "error", text: string) => void }) { const [adding, setAdding] = useState(false); const [editing, setEditing] = useState<Person | null>(null); const [deleting, setDeleting] = useState<Person | null>(null); async function remove() { if (!deleting) return; try { await request(`/api/tenants/${deleting.id}`, { method: "DELETE" }); setTenants((current) => current.filter((t) => t.id !== deleting.id)); onNotify("success", `${deleting.name} was removed.`); setDeleting(null); } catch (error) { onNotify("error", error instanceof Error ? error.message : "Unable to remove tenant."); } } return <div className="view-stack"><section className="view-heading"><div><p className="kicker">Your portfolio</p><h2>Tenant directory</h2><p>Add and maintain only the tenants assigned to your owner account.</p></div><button className="primary-action compact" onClick={() => setAdding(true)}><Plus />Add tenant</button></section>{tenants.length ? <div className="tenant-grid">{tenants.map((tenant) => <article className="tenant-card" key={tenant.id}><Avatar name={tenant.name} /><div><h3>{tenant.name}</h3><p>{tenant.email}</p><Status type="VERIFIED_PAID">Approved</Status></div><div className="tenant-actions"><button aria-label={`Edit ${tenant.name}`} onClick={() => setEditing(tenant)}><Pencil /></button><button aria-label={`Delete ${tenant.name}`} onClick={() => setDeleting(tenant)}><Trash2 /></button></div></article>)}</div> : <EmptyState icon={UsersRound} title="No tenants yet" text="Add your first tenant to start tracking their utility bills." />} {(adding || editing) && <TenantForm tenant={editing} onClose={() => { setAdding(false); setEditing(null); }} onSaved={(tenant) => { setTenants((current) => editing ? current.map((t) => t.id === tenant.id ? tenant : t) : [...current, tenant]); setAdding(false); setEditing(null); onNotify("success", editing ? "Tenant updated." : "Tenant added successfully."); }} onError={(text) => onNotify("error", text)} />}{deleting && <ConfirmModal title="Remove this tenant?" text={`This will permanently remove ${deleting.name} and their utility records.`} onCancel={() => setDeleting(null)} onConfirm={remove} />}</div>; }
+
+function TenantForm({ tenant, onClose, onSaved, onError }: { tenant: Person | null; onClose: () => void; onSaved: (tenant: Person) => void; onError: (text: string) => void }) { const [saving, setSaving] = useState(false); const [show, setShow] = useState(false); async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); setSaving(true); try { const data = await request<{ tenant: Person }>(tenant ? `/api/tenants/${tenant.id}` : "/api/tenants", { method: tenant ? "PATCH" : "POST", body: JSON.stringify(Object.fromEntries(form)) }); onSaved(data.tenant); } catch (error) { onError(error instanceof Error ? error.message : "Unable to save tenant."); } finally { setSaving(false); } } return <div className="modal-backdrop"><section className="form-modal"><button className="icon-button close" onClick={onClose}><X /></button><p className="kicker">Tenant account</p><h2>{tenant ? "Edit tenant" : "Add a tenant"}</h2><form className="modal-form" onSubmit={submit}><label>Full name<input name="name" defaultValue={tenant?.name} placeholder="Tenant’s full name" required minLength={2} /></label><label>Email<input name="email" type="email" defaultValue={tenant?.email} placeholder="tenant@example.com" required /></label>{!tenant && <label>Temporary password<div className="password-field"><input name="password" type={show ? "text" : "password"} placeholder="At least 8 characters" minLength={8} required /><button type="button" onClick={() => setShow(!show)}>{show ? <EyeOff /> : <Eye />}</button></div></label>}<button className="primary-action" disabled={saving}>{saving ? <Loader2 className="spin" /> : <Check />}{tenant ? "Save changes" : "Create tenant"}</button></form></section></div>; }
+function ConfirmModal({ title, text, onCancel, onConfirm }: { title: string; text: string; onCancel: () => void; onConfirm: () => void }) { return <div className="modal-backdrop"><section className="confirm-modal"><span><Trash2 /></span><h2>{title}</h2><p>{text}</p><div><button onClick={onCancel}>Cancel</button><button className="danger-button" onClick={onConfirm}>Remove tenant</button></div></section></div>; }
+
+function Status({ type, children }: { type: string; children: React.ReactNode }) { return <span className={`status status-${type.toLowerCase()}`}>{children}</span>; }
+function Avatar({ name }: { name: string }) { return <span className="avatar">{name.split(" ").slice(0, 2).map((part) => part[0]).join("")}</span>; }
+function EmptyState({ icon: Icon, title, text }: { icon: typeof Home; title: string; text: string }) { return <div className="empty-state"><span><Icon /></span><h3>{title}</h3><p>{text}</p></div>; }
+function LoadingScreen() { return <div className="loading-screen"><span className="mini-logo">RW</span><Loader2 className="spin" /><p>Preparing your rental workspace…</p></div>; }
+function roleName(role: Role) { return role === "MASTER_ADMIN" ? "Master Admin" : role === "ADMIN" ? "Admin / Owner" : "Tenant / User"; }
+function viewTitle(view: View, role: Role) { if (view === "tenants") return "Tenant management"; if (view === "bills") return role === "TENANT" ? "My bills" : "Utility records"; return role === "MASTER_ADMIN" ? "Portfolio overview" : role === "ADMIN" ? "Owner dashboard" : "My rental dashboard"; }
+function overviewHeading(role: Role) { return role === "MASTER_ADMIN" ? "Your whole rental network, at a glance." : role === "ADMIN" ? "Every tenant record, neatly under control." : "Your bills and rental status, without the guesswork."; }
+function overviewText(role: Role) { return role === "MASTER_ADMIN" ? "Monitor owner activity and payment verification across the portfolio." : role === "ADMIN" ? "Review claims, add records, and keep tenants informed from one calm workspace." : "Report payment status and follow the owner’s final verification in one clear timeline."; }
