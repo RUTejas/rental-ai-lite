@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MASTER_ADMIN
+  ADMIN
+  TENANT
+}
+
+enum BillType {
+  ELECTRICITY
+  WATER
+}
+
+enum TenantPaymentStatus {
+  NOT_MARKED
+  TENANT_MARKED_PAID
+  TENANT_MARKED_NOT_PAID
+}
+
+enum AdminVerificationStatus {
+  PENDING
+  VERIFIED_PAID
+  UNPAID
+  OVERDUE
+  WAIVED
+  REJECTED_CLAIM
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  passwordHash  String
+  role          Role
+  status        String        @default("APPROVED")
+  adminId       String?
+  admin         User?         @relation("AdminTenants", fields: [adminId], references: [id])
+  tenants       User[]        @relation("AdminTenants")
+  administeredBills UtilityBill[] @relation("AdminBills")
+  tenantBills   UtilityBill[] @relation("TenantBills")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([adminId])
+  @@index([role])
+}
+
+model UtilityBill {
+  id                      String                      @id @default(cuid())
+  adminId                 String
+  tenantId                String
+  billType                BillType
+  billingMonth            Int
+  billingYear             Int
+  amount                   Decimal                     @db.Decimal(12, 2)
+  dueDate                  DateTime
+  tenantPaymentStatus     TenantPaymentStatus         @default(NOT_MARKED)
+  tenantMarkedAt          DateTime?
+  tenantNote              String?
+  adminVerificationStatus AdminVerificationStatus     @default(PENDING)
+  adminVerifiedAt         DateTime?
+  adminNote               String?
+  remarks                 String?
+  admin                   User                        @relation("AdminBills", fields: [adminId], references: [id], onDelete: Cascade)
+  tenant                  User                        @relation("TenantBills", fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+
+  @@index([adminId])
+  @@index([tenantId])
+  @@index([adminVerificationStatus])
+  @@index([tenantPaymentStatus])
+}
