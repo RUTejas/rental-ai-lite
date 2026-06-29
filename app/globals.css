@@ -134,7 +134,12 @@ textarea { resize: vertical; min-height: 72px; }
 }
 .sidebar h1 { margin: 0 0 2.5rem; font: 500 1.55rem Georgia, serif; }
 .sidebar .brand-mark { margin-bottom: 1.25rem; }
-.sidebar nav { display: grid; gap: .35rem; }
+.sidebar nav {
+  display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: .35rem;
+}
 .sidebar nav a { color: #cfd5d0; text-decoration: none; padding: .8rem .9rem; border-left: 2px solid transparent; }
 .sidebar nav a:hover { background: rgba(255,255,255,.05); color: #fff; border-color: var(--brass); }
 .sidebar-user { align-self: end; display: grid; gap: .35rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,.12); }
