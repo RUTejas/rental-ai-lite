@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { billInclude, serializeBill } from "@/lib/bills";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/audit";
 
 const createBillSchema = z.object({
   tenantId: z.string().min(1),
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       id: parsed.data.tenantId,
       role: "TENANT",
       adminId: user.id,
-      status: "APPROVED"
+      status: "ACTIVE"
     },
     select: { id: true }
   });
@@ -70,5 +71,6 @@ export async function POST(request: Request) {
     },
     include: billInclude
   });
+  await logActivity({ actorId: user.id, actorRole: user.role, action: "UTILITY_BILL_CREATED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} created a ${bill.billType.toLowerCase()} bill for ${bill.tenant.name}.` });
   return NextResponse.json({ bill: serializeBill(bill) }, { status: 201 });
 }

@@ -13,6 +13,19 @@ enum Role {
   TENANT
 }
 
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  BLOCKED
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
 enum BillType {
   ELECTRICITY
   WATER
@@ -50,7 +63,7 @@ model User {
   email         String        @unique
   passwordHash  String
   role          Role
-  status        String        @default("APPROVED")
+  status        AccountStatus @default(ACTIVE)
   adminId       String?
   admin         User?         @relation("AdminTenants", fields: [adminId], references: [id])
   tenants       User[]        @relation("AdminTenants")
@@ -63,11 +76,13 @@ model User {
   administeredDocuments RentalDocument[] @relation("AdminDocuments")
   tenantDocuments RentalDocument[] @relation("TenantDocuments")
   verifiedDocuments RentalDocument[] @relation("DocumentVerifier")
+  activityLogs  ActivityLog[] @relation("ActivityActor")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([adminId])
   @@index([role])
+  @@index([status])
 }
 
 model Property {
@@ -140,16 +155,37 @@ model RentalDocument {
 }
 
 model SupportRequest {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String
-  category  String
-  message   String
-  status    String   @default("OPEN")
-  createdAt DateTime @default(now())
+  id          String        @id @default(cuid())
+  name        String?
+  email       String
+  role        String?
+  issueType   String
+  description String
+  status      SupportStatus @default(OPEN)
+  adminNote   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([email])
   @@index([status])
+  @@index([issueType])
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorRole   Role?
+  action      String
+  targetId    String?
+  targetType  String?
+  description String
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([actorRole])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model UtilityBill {

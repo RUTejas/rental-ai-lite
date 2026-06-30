@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { documentInclude, serializeDocument } from "@/lib/rental";
+import { logActivity } from "@/lib/audit";
 
 const uploadSchema = z.object({ kind: z.enum(["ID_PROOF", "AGREEMENT"]), fileName: z.string().min(1).max(180), mimeType: z.enum(["application/pdf", "image/jpeg", "image/png"]), fileData: z.string().min(10), fileSize: z.number().int().positive().max(2 * 1024 * 1024) });
 
@@ -19,5 +20,6 @@ export async function POST(request: Request) {
   const tenant = await prisma.user.findUnique({ where: { id: user.id }, select: { adminId: true } }); if (!tenant?.adminId) return NextResponse.json({ error: "Your account is not linked to an owner." }, { status: 400 });
   await prisma.rentalDocument.deleteMany({ where: { tenantId: user.id, kind: parsed.data.kind } });
   const document = await prisma.rentalDocument.create({ data: { ...parsed.data, adminId: tenant.adminId, tenantId: user.id, status: "PENDING" }, include: documentInclude });
+  await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.kind === "ID_PROOF" ? "ID_UPLOADED" : "AGREEMENT_UPLOADED", targetId: document.id, targetType: "DOCUMENT", description: `${user.name} uploaded ${parsed.data.kind === "ID_PROOF" ? "an ID proof" : "an e-agreement"}.` });
   return NextResponse.json({ document: serializeDocument(document) }, { status: 201 });
 }

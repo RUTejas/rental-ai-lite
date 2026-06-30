@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/audit";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -21,8 +22,14 @@ export async function POST(request: Request) {
   if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
-  if (user.status !== "APPROVED") {
-    return NextResponse.json({ error: "This account is not approved." }, { status: 403 });
+  if (user.role === "MASTER_ADMIN") {
+    return NextResponse.json({ error: "Use the dedicated Master Admin secure access page." }, { status: 403 });
+  }
+  if (user.status === "BLOCKED") {
+    return NextResponse.json({ error: "This account is blocked. Contact Master Admin support." }, { status: 403 });
+  }
+  if (user.status !== "ACTIVE") {
+    return NextResponse.json({ error: "This account is awaiting Master Admin approval." }, { status: 403 });
   }
 
   const sessionUser = {
@@ -32,5 +39,6 @@ export async function POST(request: Request) {
     role: user.role
   };
   await createSession(sessionUser);
+  await logActivity({ actorId: user.id, actorRole: user.role, action: "LOGIN", targetId: user.id, targetType: "USER", description: `${user.name} signed in.` });
   return NextResponse.json({ user: sessionUser });
 }

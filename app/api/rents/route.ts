@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rentInclude, serializeRent } from "@/lib/rental";
+import { logActivity } from "@/lib/audit";
 
 const createSchema = z.object({ tenantId: z.string().min(1), propertyId: z.string().optional().nullable(), billingMonth: z.number().int().min(1).max(12), billingYear: z.number().int().min(2020).max(2100), amount: z.number().positive(), dueDate: z.string().datetime() });
 
@@ -28,5 +29,6 @@ export async function POST(request: Request) {
     propertyId = property.id;
   }
   const record = await prisma.rentRecord.create({ data: { ...parsed.data, propertyId, adminId: user.id, dueDate: new Date(parsed.data.dueDate) }, include: rentInclude });
+  await logActivity({ actorId: user.id, actorRole: user.role, action: "RENT_RECORD_CREATED", targetId: record.id, targetType: "RENT_RECORD", description: `${user.name} created a rent record for ${record.tenant.name}.` });
   return NextResponse.json({ rent: serializeRent(record) }, { status: 201 });
 }

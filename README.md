@@ -14,13 +14,17 @@ Created and Developed by Tejas R U.
 ## Features
 
 - Premium public landing page with an original optimized rental hero image.
-- Working login and signup flows with password visibility controls and role-aware redirects.
+- Separate Master Admin secure access at `/master-admin`; public signup remains limited to Tenant and Owner/Admin.
+- One-time Master Admin setup and protected password recovery use a server-held setup key and close after the first Master Admin is created.
+- Working owner/tenant login and signup flows with password visibility controls and role-aware redirects.
 - Reusable responsive sidebar navigation, stats cards, status badges, data tables, empty states, modals, loading indicators, and toasts.
 - Admins create electricity and water bills for tenants assigned to their account.
 - Admins can add, edit, and remove only tenants assigned to their account, with confirmation before deletion.
 - Tenants mark their own bills as paid or not paid and add or edit a note.
 - Admins verify paid claims, mark bills unpaid or overdue, reject claims, waive bills, and add a note.
 - Master Admin sees all owners, tenants, statuses, timestamps, notes, and global bill metrics.
+- Master Admin can approve, block, and unblock owners; blocked owners lose session and login access immediately.
+- Support reports have lifecycle status and Master Admin notes, and activity logs cover authentication, registrations, payment claims, document verification, and account controls.
 - Server-side role and ownership checks protect every bill read and update.
 - Passwords are hashed with bcrypt and login sessions use signed, HTTP-only cookies.
 - PostgreSQL provides durable storage suitable for Vercel.
@@ -68,6 +72,9 @@ Set these values in `.env` before running the database commands:
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 SESSION_SECRET="a-long-random-secret"
+MASTER_ADMIN_EMAIL="master-admin@example.com"
+MASTER_ADMIN_PASSWORD="a-unique-strong-password"
+MASTER_ADMIN_SETUP_KEY="a-separate-random-setup-and-recovery-key"
 ```
 
 Generate a suitable session secret in PowerShell with:
@@ -82,14 +89,13 @@ After `npm run db:seed`, use:
 
 | Role | Email | Password |
 | --- | --- | --- |
-| Master Admin | `master@rentwise.ai` | `Master@12345` |
 | Admin / Owner | `aarav.owner@rentwise.ai` | `Owner@12345` |
 | Admin / Owner | `meera.owner@rentwise.ai` | `Owner@22345` |
 | Tenant | `priya.tenant@rentwise.ai` | `Tenant@12345` |
 | Tenant | `kabir.tenant@rentwise.ai` | `Tenant@22345` |
 | Tenant | `anaya.tenant@rentwise.ai` | `Tenant@32345` |
 
-Change or remove demo credentials before using the app with real data.
+The seed creates Master Admin only when `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD` are configured. If none exists, visit `/master-admin`; the one-time setup option accepts `MASTER_ADMIN_SETUP_KEY` and permanently closes after creation. Never expose these three values in client code.
 
 ## Test the complete bill flow
 
@@ -101,7 +107,7 @@ Change or remove demo credentials before using the app with real data.
 6. Sign back in as Aarav Owner. Confirm the tenant status, marked date, and note are visible.
 7. Add an admin note and choose **Verify as Paid**, **Mark Unpaid**, **Mark Overdue**, **Reject Claim**, or **Waive Bill**.
 8. Sign back in as Priya and confirm the final owner status and note are visible.
-9. Sign in as `master@rentwise.ai` and confirm the record appears in **All Utility Bills** and the global metrics.
+9. Open `/master-admin`, sign in with the protected Master Admin credentials, and confirm the record appears in **All Utility Bills** and the global metrics.
 10. Sign in as Meera Owner and confirm Aarav’s tenants and bills are not visible.
 
 The API independently checks these boundaries; hiding controls in the interface is not the security mechanism.
@@ -121,7 +127,7 @@ The API independently checks these boundaries; hiding controls in the interface 
 4. Go to Vercel and click **Add New Project**.
 5. Import the GitHub repository. Keep the repository root as the Root Directory.
 6. Confirm the Framework Preset is **Next.js**.
-7. Add `DATABASE_URL` and `SESSION_SECRET` in **Project Settings → Environment Variables** for Production, Preview, and Development as appropriate.
+7. Add `DATABASE_URL`, `SESSION_SECRET`, `MASTER_ADMIN_EMAIL`, `MASTER_ADMIN_PASSWORD`, and `MASTER_ADMIN_SETUP_KEY` in **Project Settings → Environment Variables**. Use different high-entropy values for the password and setup key.
 8. Click **Deploy**.
 
 `vercel.json` supplies the install, development, and build commands. After deployment, no long-running backend service is required: authentication and bill operations run as Next.js route handlers on Vercel.
@@ -136,6 +142,9 @@ npm run start
 
 `npm run start` serves the completed production build at [http://localhost:3000](http://localhost:3000).
 
-## Current scope
+## Master Admin security notes
 
-This migration intentionally focuses the former Python prototype into the utility-bill workflow requested here. Account creation, property agreements, document uploads, rent ledgers, and password recovery from the earlier prototype are not included. A production operator should add an invitation/account-management flow and replace the seeded passwords before onboarding real users.
+- General `/api/auth/login` rejects Master Admin accounts; they can authenticate only through `/api/auth/master/login`.
+- `/master-admin/dashboard` performs a server-side role check before rendering, and every Master API repeats the role check.
+- Owner signup creates a `PENDING` account. Master Admin approval changes it to `ACTIVE`; `BLOCKED` accounts cannot establish or retain a valid session.
+- The setup key is compared server-side and is never returned by an API.

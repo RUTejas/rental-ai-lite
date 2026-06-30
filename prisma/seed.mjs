@@ -7,18 +7,26 @@ async function upsertUser({ name, email, password, role, adminId = null }) {
   const passwordHash = await bcrypt.hash(password, 12);
   return prisma.user.upsert({
     where: { email },
-    update: { name, role, adminId, status: "APPROVED" },
-    create: { name, email, passwordHash, role, adminId, status: "APPROVED" }
+    update: { name, role, adminId, status: "ACTIVE" },
+    create: { name, email, passwordHash, role, adminId, status: "ACTIVE" }
   });
 }
 
 async function main() {
-  await upsertUser({
-    name: "Master Admin",
-    email: "master@rentwise.ai",
-    password: "Master@12345",
-    role: "MASTER_ADMIN"
-  });
+  const masterEmail = process.env.MASTER_ADMIN_EMAIL;
+  const masterPassword = process.env.MASTER_ADMIN_PASSWORD;
+  if (masterEmail && masterPassword) {
+    if (masterPassword.length < 12 || !/[a-z]/.test(masterPassword) || !/[A-Z]/.test(masterPassword) || !/\d/.test(masterPassword) || !/[^A-Za-z0-9]/.test(masterPassword)) {
+      throw new Error("MASTER_ADMIN_PASSWORD must contain 12+ characters, upper/lowercase letters, a number, and a symbol.");
+    }
+    const existingMaster = await prisma.user.findFirst({ where: { role: "MASTER_ADMIN" }, select: { id: true } });
+    const passwordHash = await bcrypt.hash(masterPassword, 12);
+    if (existingMaster) {
+      await prisma.user.update({ where: { id: existingMaster.id }, data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, status: "ACTIVE" } });
+    } else {
+      await prisma.user.create({ data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, role: "MASTER_ADMIN", status: "ACTIVE" } });
+    }
+  }
 
   const aarav = await upsertUser({
     name: "Aarav Owner",

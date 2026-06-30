@@ -35,7 +35,7 @@ export async function createSession(user: SessionUser) {
 
 export async function clearSession() {
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, "", { httpOnly: true, maxAge: 0, path: "/" });
+  cookieStore.set(COOKIE_NAME, "", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 0, path: "/" });
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -50,7 +50,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       where: { id: payload.sub },
       select: { id: true, name: true, email: true, role: true, status: true }
     });
-    if (!user || user.status !== "APPROVED") return null;
+    if (!user || user.status !== "ACTIVE") return null;
     return { id: user.id, name: user.name, email: user.email, role: user.role };
   } catch {
     return null;

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { billInclude, serializeBill } from "@/lib/bills";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/audit";
 
 const tenantUpdateSchema = z.object({
   tenantPaymentStatus: z.enum(["TENANT_MARKED_PAID", "TENANT_MARKED_NOT_PAID"]),
@@ -52,6 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       },
       include: billInclude
     });
+    await logActivity({ actorId: user.id, actorRole: user.role, action: "PAYMENT_MARKED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} marked a ${bill.billType.toLowerCase()} bill ${parsed.data.tenantPaymentStatus === "TENANT_MARKED_PAID" ? "paid" : "not paid"}.` });
     return NextResponse.json({ bill: serializeBill(updated) });
   }
 
@@ -74,5 +76,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     },
     include: billInclude
   });
+  await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.adminVerificationStatus === "REJECTED_CLAIM" ? "PAYMENT_REJECTED" : "PAYMENT_VERIFIED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} set a utility bill to ${parsed.data.adminVerificationStatus.toLowerCase()}.` });
   return NextResponse.json({ bill: serializeBill(updated) });
 }
