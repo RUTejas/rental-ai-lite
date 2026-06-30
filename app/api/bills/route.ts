@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     },
     include: billInclude
   });
+  await prisma.notification.create({ data: { userId: tenant.id, title: `${bill.billType === "WATER" ? "Water" : "Electricity"} bill due`, message: `₹${Number(bill.amount).toLocaleString("en-IN")} is due on ${bill.dueDate.toLocaleDateString("en-IN")}.`, type: "BILL_DUE" } });
   await logActivity({ actorId: user.id, actorRole: user.role, action: "UTILITY_BILL_CREATED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} created a ${bill.billType.toLowerCase()} bill for ${bill.tenant.name}.` });
   return NextResponse.json({ bill: serializeBill(bill) }, { status: 201 });
 }

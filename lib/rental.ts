@@ -18,5 +18,5 @@ export function serializeRent(record: Prisma.RentRecordGetPayload<{ include: typ
 
 export function serializeDocument(record: Prisma.RentalDocumentGetPayload<{ include: typeof documentInclude }>) {
   const { fileData: _fileData, ...safe } = record;
-  return { ...safe, verifiedAt: record.verifiedAt?.toISOString() ?? null, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() };
+  return { ...safe, agreementStart: record.agreementStart?.toISOString() ?? null, agreementEnd: record.agreementEnd?.toISOString() ?? null, verifiedAt: record.verifiedAt?.toISOString() ?? null, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() };
 }

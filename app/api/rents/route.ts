@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     propertyId = property.id;
   }
   const record = await prisma.rentRecord.create({ data: { ...parsed.data, propertyId, adminId: user.id, dueDate: new Date(parsed.data.dueDate) }, include: rentInclude });
+  await prisma.notification.create({ data: { userId: tenant.id, title: "Rent due reminder", message: `₹${Number(record.amount).toLocaleString("en-IN")} is due on ${record.dueDate.toLocaleDateString("en-IN")}.`, type: "RENT_DUE" } });
   await logActivity({ actorId: user.id, actorRole: user.role, action: "RENT_RECORD_CREATED", targetId: record.id, targetType: "RENT_RECORD", description: `${user.name} created a rent record for ${record.tenant.name}.` });
   return NextResponse.json({ rent: serializeRent(record) }, { status: 201 });
 }

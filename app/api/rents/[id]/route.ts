@@ -24,6 +24,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (record.adminId !== user.id) return NextResponse.json({ error: "You can verify only your tenant records." }, { status: 403 });
   const parsed = adminSchema.safeParse(body); if (!parsed.success) return NextResponse.json({ error: "Choose a valid verification status." }, { status: 400 });
   const updated = await prisma.rentRecord.update({ where: { id }, data: { adminVerificationStatus: parsed.data.adminVerificationStatus, adminVerifiedAt: new Date(), adminNote: parsed.data.adminNote?.trim() || null }, include: rentInclude });
+  if (parsed.data.adminVerificationStatus === "VERIFIED_PAID") {
+    await prisma.rentReceipt.upsert({ where: { rentRecordId: record.id }, update: { verifiedById: user.id, verifiedAt: new Date(), amount: record.amount, status: "VERIFIED_PAID" }, create: { tenantId: record.tenantId, ownerId: record.adminId, rentRecordId: record.id, receiptNumber: `RW-${record.billingYear}${String(record.billingMonth).padStart(2, "0")}-${record.id.slice(-6).toUpperCase()}`, amount: record.amount, month: record.billingMonth, year: record.billingYear, status: "VERIFIED_PAID", verifiedById: user.id, verifiedAt: new Date() } });
+    await prisma.notification.create({ data: { userId: record.tenantId, title: "Rent payment verified", message: `Your ${record.billingMonth}/${record.billingYear} rent was verified. Your receipt is ready.`, type: "RENT_RECEIPT" } });
+  }
   await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.adminVerificationStatus === "REJECTED_CLAIM" ? "RENT_REJECTED" : "RENT_VERIFIED", targetId: record.id, targetType: "RENT_RECORD", description: `${user.name} set rent verification to ${parsed.data.adminVerificationStatus.toLowerCase()}.` });
   return NextResponse.json({ rent: serializeRent(updated) });
 }

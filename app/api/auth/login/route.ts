@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
+import { startUserSession } from "@/lib/usage";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
     email: user.email,
     role: user.role
   };
-  await createSession(sessionUser);
+  const sessionId = await startUserSession(user, request, user.role === "ADMIN" ? "/owner-dashboard" : "/tenant-dashboard");
+  await createSession(sessionUser, sessionId);
   await logActivity({ actorId: user.id, actorRole: user.role, action: "LOGIN", targetId: user.id, targetType: "USER", description: `${user.name} signed in.` });
   return NextResponse.json({ user: sessionUser });
 }

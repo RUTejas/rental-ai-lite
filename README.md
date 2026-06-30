@@ -33,6 +33,11 @@ Created and Developed by Tejas R U.
 - Tenants can upload signed agreements and ID proofs (PDF/JPG/PNG, 2 MB maximum) for their linked owner to verify or reject with a reason.
 - Master Admin and Owner analytics use real scoped PostgreSQL data with rent, utility, verification, owner ranking, and document metrics.
 - Account recovery and sign-in/create-account issue forms create trackable support requests without exposing whether an email exists.
+- A role-scoped RentWise AI assistant answers rent, bill, document, complaint, receipt, owner, and live-usage questions without an external API key.
+- Privacy-conscious user sessions track app page, device family, browser, operating system, activity time, and online presence without raw IP addresses.
+- Master Admin live analytics include active users, device/browser/OS/role/age distributions, pages, peak hours, session duration, and new-versus-returning users.
+- Tenants raise maintenance complaints; owners resolve them; Master Admin sees the global complaint queue and analytics.
+- Verified rent payments create protected downloadable receipts, while notices, notifications, agreement expiry dates, and the rental calendar keep users informed.
 
 ## Status model
 
@@ -75,6 +80,7 @@ SESSION_SECRET="a-long-random-secret"
 MASTER_ADMIN_EMAIL="master-admin@example.com"
 MASTER_ADMIN_PASSWORD="a-unique-strong-password"
 MASTER_ADMIN_SETUP_KEY="a-separate-random-setup-and-recovery-key"
+MASTER_ADMIN_INVITE_CODE="an-optional-separate-one-time-invite-code"
 ```
 
 Generate a suitable session secret in PowerShell with:
@@ -147,4 +153,5 @@ npm run start
 - General `/api/auth/login` rejects Master Admin accounts; they can authenticate only through `/api/auth/master/login`.
 - `/master-admin/dashboard` performs a server-side role check before rendering, and every Master API repeats the role check.
 - Owner signup creates a `PENDING` account. Master Admin approval changes it to `ACTIVE`; `BLOCKED` accounts cannot establish or retain a valid session.
-- The setup key is compared server-side and is never returned by an API.
+- The setup key or invite code is compared server-side and is never returned by an API.
+- Usage analytics intentionally exclude raw IP addresses, passwords, document contents, and unrelated browsing activity.

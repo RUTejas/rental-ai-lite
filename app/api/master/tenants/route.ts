@@ -16,11 +16,12 @@ export async function GET(request: Request) {
       ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {})
     },
     select: {
-      id: true, name: true, email: true, status: true, createdAt: true,
+      id: true, name: true, email: true, ageGroup: true, status: true, createdAt: true,
       admin: { select: { id: true, name: true, email: true, status: true } },
       tenantRent: { select: { id: true, amount: true, billingMonth: true, billingYear: true, tenantPaymentStatus: true, adminVerificationStatus: true }, orderBy: { createdAt: "desc" }, take: 6 },
       tenantBills: { select: { id: true, billType: true, amount: true, tenantPaymentStatus: true, adminVerificationStatus: true }, orderBy: { createdAt: "desc" }, take: 8 },
       tenantDocuments: { select: { id: true, kind: true, fileName: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" } },
+      complaintsRaised: { select: { id: true, status: true, priority: true } },
       propertiesRented: { select: { id: true, name: true, address: true, unit: true, status: true } }
     },
     orderBy: { name: "asc" }

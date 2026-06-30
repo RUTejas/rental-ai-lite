@@ -64,6 +64,8 @@ model User {
   passwordHash  String
   role          Role
   status        AccountStatus @default(ACTIVE)
+  phone         String?
+  ageGroup      String?
   adminId       String?
   admin         User?         @relation("AdminTenants", fields: [adminId], references: [id])
   tenants       User[]        @relation("AdminTenants")
@@ -77,6 +79,16 @@ model User {
   tenantDocuments RentalDocument[] @relation("TenantDocuments")
   verifiedDocuments RentalDocument[] @relation("DocumentVerifier")
   activityLogs  ActivityLog[] @relation("ActivityActor")
+  sessions      UserSession[]
+  analyticsEvents UserAnalyticsEvent[]
+  notifications Notification[]
+  complaintsRaised Complaint[] @relation("TenantComplaints")
+  complaintsManaged Complaint[] @relation("OwnerComplaints")
+  tenantReceipts RentReceipt[] @relation("TenantReceipts")
+  ownerReceipts RentReceipt[] @relation("OwnerReceipts")
+  verifiedReceipts RentReceipt[] @relation("ReceiptVerifier")
+  noticesCreated Notice[] @relation("NoticeCreator")
+  targetedNotices Notice[] @relation("NoticeOwner")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -122,6 +134,7 @@ model RentRecord {
   admin                   User                    @relation("AdminRent", fields: [adminId], references: [id], onDelete: Cascade)
   tenant                  User                    @relation("TenantRent", fields: [tenantId], references: [id], onDelete: Cascade)
   property                Property?               @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  receipt                 RentReceipt?
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
@@ -143,6 +156,8 @@ model RentalDocument {
   verifiedById String?
   verifiedAt   DateTime?
   adminNote    String?
+  agreementStart DateTime?
+  agreementEnd   DateTime?
   admin        User               @relation("AdminDocuments", fields: [adminId], references: [id], onDelete: Cascade)
   tenant       User               @relation("TenantDocuments", fields: [tenantId], references: [id], onDelete: Cascade)
   verifiedBy   User?              @relation("DocumentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
@@ -186,6 +201,126 @@ model ActivityLog {
   @@index([actorRole])
   @@index([action])
   @@index([createdAt])
+}
+
+model MasterAdminSetup {
+  id             String   @id @default(cuid())
+  setupCompleted Boolean  @default(false)
+  setupKeyHash   String?
+  createdAt      DateTime @default(now())
+}
+
+model UserSession {
+  id              String   @id @default(cuid())
+  userId          String
+  role            Role
+  deviceType      String
+  browser         String
+  os              String
+  currentPage     String   @default("/")
+  loginAt         DateTime @default(now())
+  lastActiveAt    DateTime @default(now())
+  logoutAt        DateTime?
+  sessionDuration Int      @default(0)
+  isOnline        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isOnline, lastActiveAt])
+  @@index([role])
+}
+
+model UserAnalyticsEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  role       Role
+  eventType  String
+  page       String
+  deviceType String
+  browser    String
+  os         String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([eventType, createdAt])
+  @@index([page, createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Complaint {
+  id          String   @id @default(cuid())
+  tenantId    String
+  ownerId     String
+  title       String
+  category    String
+  description String
+  priority    String   @default("MEDIUM")
+  status      String   @default("NEW")
+  imageUrl    String?
+  ownerNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      User     @relation("TenantComplaints", fields: [tenantId], references: [id], onDelete: Cascade)
+  owner       User     @relation("OwnerComplaints", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ownerId, status])
+}
+
+model RentReceipt {
+  id            String   @id @default(cuid())
+  tenantId      String
+  ownerId       String
+  rentRecordId  String   @unique
+  receiptNumber String   @unique
+  amount        Decimal  @db.Decimal(12, 2)
+  month         Int
+  year          Int
+  status        String   @default("VERIFIED_PAID")
+  verifiedById  String
+  verifiedAt    DateTime
+  pdfUrl        String?
+  createdAt     DateTime @default(now())
+  tenant        User     @relation("TenantReceipts", fields: [tenantId], references: [id], onDelete: Cascade)
+  owner         User     @relation("OwnerReceipts", fields: [ownerId], references: [id], onDelete: Cascade)
+  verifiedBy    User     @relation("ReceiptVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+  rentRecord    RentRecord @relation(fields: [rentRecordId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ownerId])
+}
+
+model Notice {
+  id          String   @id @default(cuid())
+  createdById String
+  targetRole  Role?
+  ownerId     String?
+  title       String
+  message     String
+  noticeType  String
+  isImportant Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  createdBy   User     @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  owner       User?    @relation("NoticeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([createdById])
+  @@index([ownerId])
+  @@index([targetRole, createdAt])
 }
 
 model UtilityBill {

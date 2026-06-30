@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
+import { startUserSession } from "@/lib/usage";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
@@ -16,7 +17,8 @@ export async function POST(request: Request) {
   }
   if (user.status !== "ACTIVE") return NextResponse.json({ error: "This Master Admin account is not active." }, { status: 403 });
   const sessionUser = { id: user.id, name: user.name, email: user.email, role: user.role };
-  await createSession(sessionUser);
+  const sessionId = await startUserSession(user, request, "/master-admin/dashboard");
+  await createSession(sessionUser, sessionId);
   await logActivity({ actorId: user.id, actorRole: user.role, action: "LOGIN", targetId: user.id, targetType: "USER", description: `${user.name} entered the Master Admin command center.` });
   return NextResponse.json({ user: sessionUser });
 }

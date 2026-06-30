@@ -64,6 +64,7 @@ export function MasterAdminAccess() {
         {mode === "report" ? <label>Describe the access issue<textarea name="description" minLength={10} maxLength={2000} required placeholder="What happened while signing in?" /></label> : <>
           {(mode === "setup" || mode === "reset") && <label>Protected setup / recovery key<input name="setupKey" type="password" autoComplete="off" required placeholder="Server-issued key" /></label>}
           <label>{mode === "login" ? "Password" : "New strong password"}<div className="password-field"><input name="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "login" ? 1 : 12} required placeholder={mode === "login" ? "Enter your password" : "12+ characters, mixed case, number & symbol"} /><button type="button" onClick={() => setVisible(!visible)} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff /> : <Eye />}</button></div></label>
+          {mode === "setup" && <label>Confirm password<input name="confirmPassword" type={visible ? "text" : "password"} autoComplete="new-password" minLength={12} required placeholder="Repeat the strong password" /></label>}
         </>}
         <button className="master-submit" disabled={busy}>{busy ? <Loader2 className="spin" /> : <ShieldCheck />}{mode === "login" ? "Enter command center" : mode === "reset" ? "Reset protected password" : mode === "setup" ? "Create Master Admin" : "Submit secure report"}<ArrowRight /></button>
       </form>

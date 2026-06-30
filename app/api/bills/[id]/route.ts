@@ -76,6 +76,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     },
     include: billInclude
   });
+  await prisma.notification.create({ data: { userId: bill.tenantId, title: "Bill verification updated", message: `Your ${bill.billType.toLowerCase()} bill is now ${parsed.data.adminVerificationStatus.toLowerCase().replaceAll("_", " ")}.`, type: "PAYMENT_VERIFICATION" } });
   await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.adminVerificationStatus === "REJECTED_CLAIM" ? "PAYMENT_REJECTED" : "PAYMENT_VERIFIED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} set a utility bill to ${parsed.data.adminVerificationStatus.toLowerCase()}.` });
   return NextResponse.json({ bill: serializeBill(updated) });
 }

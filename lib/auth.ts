@@ -13,10 +13,11 @@ export type SessionUser = {
   name: string;
   email: string;
   role: "MASTER_ADMIN" | "ADMIN" | "TENANT";
+  sessionId?: string | null;
 };
 
-export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ role: user.role })
+export async function createSession(user: SessionUser, sessionId?: string) {
+  const token = await new SignJWT({ role: user.role, sid: sessionId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -51,7 +52,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       select: { id: true, name: true, email: true, role: true, status: true }
     });
     if (!user || user.status !== "ACTIVE") return null;
-    return { id: user.id, name: user.name, email: user.email, role: user.role };
+    return { id: user.id, name: user.name, email: user.email, role: user.role, sessionId: typeof payload.sid === "string" ? payload.sid : null };
   } catch {
     return null;
   }
