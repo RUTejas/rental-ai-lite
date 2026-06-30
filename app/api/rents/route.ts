@@ -11,7 +11,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const where = user.role === "TENANT" ? { tenantId: user.id } : user.role === "ADMIN" ? { adminId: user.id } : {};
-  const records = await prisma.rentRecord.findMany({ where, include: rentInclude, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }] });
+  const records = await prisma.rentRecord.findMany({ where: { ...where, isDeleted: false }, include: rentInclude, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }] });
   return NextResponse.json({ rents: records.map(serializeRent) });
 }
 
@@ -20,11 +20,11 @@ export async function POST(request: Request) {
   if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Owner access required." }, { status: 403 });
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Check the rent record details." }, { status: 400 });
-  const tenant = await prisma.user.findFirst({ where: { id: parsed.data.tenantId, adminId: user.id, role: "TENANT" }, select: { id: true } });
+  const tenant = await prisma.user.findFirst({ where: { id: parsed.data.tenantId, adminId: user.id, role: "TENANT", isDeleted: false }, select: { id: true } });
   if (!tenant) return NextResponse.json({ error: "That tenant is not assigned to you." }, { status: 403 });
   let propertyId: string | null = null;
   if (parsed.data.propertyId) {
-    const property = await prisma.property.findFirst({ where: { id: parsed.data.propertyId, adminId: user.id, tenantId: tenant.id }, select: { id: true } });
+    const property = await prisma.property.findFirst({ where: { id: parsed.data.propertyId, adminId: user.id, tenantId: tenant.id, isDeleted: false }, select: { id: true } });
     if (!property) return NextResponse.json({ error: "Property does not belong to this tenant." }, { status: 403 });
     propertyId = property.id;
   }

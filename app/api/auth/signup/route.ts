@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (parsed.data.role === "TENANT") {
     if (!parsed.data.adminId) return NextResponse.json({ error: "Select your owner/admin." }, { status: 400 });
     const admin = await prisma.user.findFirst({
-      where: { id: parsed.data.adminId, role: "ADMIN", status: "ACTIVE" },
+      where: { id: parsed.data.adminId, role: "ADMIN", status: "ACTIVE", isDeleted: false },
       select: { id: true }
     });
     if (!admin) return NextResponse.json({ error: "No approved owner was found with that email." }, { status: 400 });
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.role === "ADMIN" ? "OWNER_REGISTERED" : "TENANT_REGISTERED", targetId: user.id, targetType: "USER", description: `${user.name} registered as ${parsed.data.role === "ADMIN" ? "an owner awaiting approval" : "a tenant"}.` });
   if (parsed.data.role === "ADMIN") {
     if (parsed.data.propertyName && parsed.data.propertyAddress) await prisma.property.create({ data: { adminId: user.id, name: parsed.data.propertyName, address: parsed.data.propertyAddress, monthlyRent: 0, status: "PENDING" } });
-    const masters = await prisma.user.findMany({ where: { role: "MASTER_ADMIN", status: "ACTIVE" }, select: { id: true } });
+    const masters = await prisma.user.findMany({ where: { role: "MASTER_ADMIN", status: "ACTIVE", isDeleted: false }, select: { id: true } });
     if (masters.length) await prisma.notification.createMany({ data: masters.map((master) => ({ userId: master.id, title: "Owner approval required", message: `${user.name} registered as an owner and is waiting for approval.`, type: "OWNER_REGISTRATION" })) });
     return NextResponse.json({ pending: true, message: "Your owner account was submitted for Master Admin approval." }, { status: 201 });
   }

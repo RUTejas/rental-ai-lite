@@ -20,11 +20,11 @@ export async function POST(request: Request) {
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email.toLowerCase() }
   });
-  if (!user || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
+  if (!user || user.isDeleted || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
   if (user.role === "MASTER_ADMIN") {
-    return NextResponse.json({ error: "Use the dedicated Master Admin secure access page." }, { status: 403 });
+    return NextResponse.json({ error: "This account cannot use public sign-in." }, { status: 403 });
   }
   if (user.status === "BLOCKED") {
     return NextResponse.json({ error: "This account is blocked. Contact Master Admin support." }, { status: 403 });

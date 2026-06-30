@@ -27,7 +27,7 @@ export async function GET() {
         : {};
 
   const bills = await prisma.utilityBill.findMany({
-    where,
+    where: { ...where, isDeleted: false },
     include: billInclude,
     orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }]
   });
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       role: "TENANT",
       adminId: user.id,
       status: "ACTIVE"
+      ,isDeleted: false
     },
     select: { id: true }
   });

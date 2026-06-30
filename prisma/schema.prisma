@@ -89,12 +89,18 @@ model User {
   verifiedReceipts RentReceipt[] @relation("ReceiptVerifier")
   noticesCreated Notice[] @relation("NoticeCreator")
   targetedNotices Notice[] @relation("NoticeOwner")
+  isDeleted     Boolean       @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletedByRole Role?
+  deleteReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([adminId])
   @@index([role])
   @@index([status])
+  @@index([isDeleted])
 }
 
 model Property {
@@ -109,11 +115,17 @@ model Property {
   admin       User         @relation("AdminProperties", fields: [adminId], references: [id], onDelete: Cascade)
   tenant      User?        @relation("TenantProperties", fields: [tenantId], references: [id], onDelete: SetNull)
   rentRecords RentRecord[]
+  isDeleted   Boolean      @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deletedByRole Role?
+  deleteReason String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@index([adminId])
   @@index([tenantId])
+  @@index([isDeleted])
 }
 
 model RentRecord {
@@ -135,12 +147,18 @@ model RentRecord {
   tenant                  User                    @relation("TenantRent", fields: [tenantId], references: [id], onDelete: Cascade)
   property                Property?               @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   receipt                 RentReceipt?
+  isDeleted               Boolean                 @default(false)
+  deletedAt               DateTime?
+  deletedBy               String?
+  deletedByRole           Role?
+  deleteReason            String?
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
   @@index([adminId])
   @@index([tenantId])
   @@index([adminVerificationStatus])
+  @@index([isDeleted])
 }
 
 model RentalDocument {
@@ -161,12 +179,18 @@ model RentalDocument {
   admin        User               @relation("AdminDocuments", fields: [adminId], references: [id], onDelete: Cascade)
   tenant       User               @relation("TenantDocuments", fields: [tenantId], references: [id], onDelete: Cascade)
   verifiedBy   User?              @relation("DocumentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  isDeleted    Boolean            @default(false)
+  deletedAt    DateTime?
+  deletedBy    String?
+  deletedByRole Role?
+  deleteReason String?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
   @@index([adminId])
   @@index([tenantId])
   @@index([kind, status])
+  @@index([isDeleted])
 }
 
 model SupportRequest {
@@ -178,22 +202,33 @@ model SupportRequest {
   description String
   status      SupportStatus @default(OPEN)
   adminNote   String?
+  isDeleted   Boolean       @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deletedByRole Role?
+  deleteReason String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([email])
   @@index([status])
   @@index([issueType])
+  @@index([isDeleted])
 }
 
 model ActivityLog {
   id          String   @id @default(cuid())
   actorId     String?
   actorRole   Role?
+  actorName   String?
   action      String
   targetId    String?
   targetType  String?
+  targetName  String?
   description String
+  deleteReason String?
+  deletedAt   DateTime?
+  metadata    Json?
   createdAt   DateTime @default(now())
   actor       User?    @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
 
@@ -201,6 +236,17 @@ model ActivityLog {
   @@index([actorRole])
   @@index([action])
   @@index([createdAt])
+}
+
+model MasterLoginAttempt {
+  id        String   @id @default(cuid())
+  emailHash String
+  success   Boolean  @default(false)
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([emailHash, createdAt])
+  @@index([success, createdAt])
 }
 
 model MasterAdminSetup {
@@ -273,6 +319,11 @@ model Complaint {
   status      String   @default("NEW")
   imageUrl    String?
   ownerNote   String?
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deletedByRole Role?
+  deleteReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenant      User     @relation("TenantComplaints", fields: [tenantId], references: [id], onDelete: Cascade)
@@ -280,6 +331,7 @@ model Complaint {
 
   @@index([tenantId])
   @@index([ownerId, status])
+  @@index([isDeleted])
 }
 
 model RentReceipt {
@@ -295,6 +347,11 @@ model RentReceipt {
   verifiedById  String
   verifiedAt    DateTime
   pdfUrl        String?
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deletedByRole Role?
+  deleteReason  String?
   createdAt     DateTime @default(now())
   tenant        User     @relation("TenantReceipts", fields: [tenantId], references: [id], onDelete: Cascade)
   owner         User     @relation("OwnerReceipts", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -303,6 +360,7 @@ model RentReceipt {
 
   @@index([tenantId])
   @@index([ownerId])
+  @@index([isDeleted])
 }
 
 model Notice {
@@ -314,6 +372,11 @@ model Notice {
   message     String
   noticeType  String
   isImportant Boolean  @default(false)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deletedByRole Role?
+  deleteReason String?
   createdAt   DateTime @default(now())
   createdBy   User     @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Cascade)
   owner       User?    @relation("NoticeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -321,6 +384,7 @@ model Notice {
   @@index([createdById])
   @@index([ownerId])
   @@index([targetRole, createdAt])
+  @@index([isDeleted])
 }
 
 model UtilityBill {
@@ -339,6 +403,11 @@ model UtilityBill {
   adminVerifiedAt         DateTime?
   adminNote               String?
   remarks                 String?
+  isDeleted               Boolean                     @default(false)
+  deletedAt               DateTime?
+  deletedBy               String?
+  deletedByRole           Role?
+  deleteReason            String?
   admin                   User                        @relation("AdminBills", fields: [adminId], references: [id], onDelete: Cascade)
   tenant                  User                        @relation("TenantBills", fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt               DateTime                    @default(now())
@@ -348,4 +417,5 @@ model UtilityBill {
   @@index([tenantId])
   @@index([adminVerificationStatus])
   @@index([tenantPaymentStatus])
+  @@index([isDeleted])
 }

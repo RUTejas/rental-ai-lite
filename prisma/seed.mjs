@@ -13,7 +13,7 @@ async function upsertUser({ name, email, password, role, adminId = null }) {
 }
 
 async function main() {
-  const masterEmail = process.env.MASTER_ADMIN_EMAIL;
+  const masterEmail = process.env.MASTER_ADMIN_ALLOWED_EMAIL || process.env.MASTER_ADMIN_EMAIL;
   const masterPassword = process.env.MASTER_ADMIN_PASSWORD;
   if (masterEmail && masterPassword) {
     if (masterPassword.length < 12 || !/[a-z]/.test(masterPassword) || !/[A-Z]/.test(masterPassword) || !/\d/.test(masterPassword) || !/[^A-Za-z0-9]/.test(masterPassword)) {
@@ -22,7 +22,7 @@ async function main() {
     const existingMaster = await prisma.user.findFirst({ where: { role: "MASTER_ADMIN" }, select: { id: true } });
     const passwordHash = await bcrypt.hash(masterPassword, 12);
     if (existingMaster) {
-      await prisma.user.update({ where: { id: existingMaster.id }, data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, status: "ACTIVE" } });
+      await prisma.user.update({ where: { id: existingMaster.id }, data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, status: "ACTIVE", isDeleted: false, deletedAt: null, deletedBy: null, deletedByRole: null, deleteReason: null } });
     } else {
       await prisma.user.create({ data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, role: "MASTER_ADMIN", status: "ACTIVE" } });
     }

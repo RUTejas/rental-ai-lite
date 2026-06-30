@@ -49,9 +49,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     if (!payload.sub) return null;
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, name: true, email: true, role: true, status: true }
+      select: { id: true, name: true, email: true, role: true, status: true, isDeleted: true }
     });
-    if (!user || user.status !== "ACTIVE") return null;
+    if (!user || user.status !== "ACTIVE" || user.isDeleted) return null;
     return { id: user.id, name: user.name, email: user.email, role: user.role, sessionId: typeof payload.sid === "string" ? payload.sid : null };
   } catch {
     return null;

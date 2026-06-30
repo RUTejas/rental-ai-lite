@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { billInclude, serializeBill } from "@/lib/bills";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
+import { deletionFields, logDeletion, readDeletionRequest } from "@/lib/deletion";
 
 const tenantUpdateSchema = z.object({
   tenantPaymentStatus: z.enum(["TENANT_MARKED_PAID", "TENANT_MARKED_NOT_PAID"]),
@@ -33,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const body = await request.json().catch(() => null);
   const { id } = await params;
-  const bill = await prisma.utilityBill.findUnique({ where: { id } });
+  const bill = await prisma.utilityBill.findFirst({ where: { id, isDeleted: false } });
   if (!bill) return NextResponse.json({ error: "Bill not found." }, { status: 404 });
 
   if (user.role === "TENANT") {
@@ -79,4 +80,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   await prisma.notification.create({ data: { userId: bill.tenantId, title: "Bill verification updated", message: `Your ${bill.billType.toLowerCase()} bill is now ${parsed.data.adminVerificationStatus.toLowerCase().replaceAll("_", " ")}.`, type: "PAYMENT_VERIFICATION" } });
   await logActivity({ actorId: user.id, actorRole: user.role, action: parsed.data.adminVerificationStatus === "REJECTED_CLAIM" ? "PAYMENT_REJECTED" : "PAYMENT_VERIFIED", targetId: bill.id, targetType: "UTILITY_BILL", description: `${user.name} set a utility bill to ${parsed.data.adminVerificationStatus.toLowerCase()}.` });
   return NextResponse.json({ bill: serializeBill(updated) });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user || user.role === "TENANT") return NextResponse.json({ error: "Owner or Master Admin access required." }, { status: 403 });
+  const { id } = await params;
+  const bill = await prisma.utilityBill.findFirst({ where: { id, isDeleted: false }, include: { tenant: { select: { name: true } } } });
+  if (!bill || (user.role === "ADMIN" && bill.adminId !== user.id)) return NextResponse.json({ error: "Bill not found in your account." }, { status: 404 });
+  const parsed = await readDeletionRequest(request);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  await prisma.utilityBill.update({ where: { id }, data: deletionFields(user, parsed.data.reason) });
+  await logDeletion(user, { id, type: "UTILITY_BILL", name: `${bill.tenant.name}'s ${bill.billType.toLowerCase()} bill` }, parsed.data.reason);
+  return NextResponse.json({ ok: true });
 }

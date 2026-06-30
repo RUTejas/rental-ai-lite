@@ -21,12 +21,12 @@ export async function POST(request: Request) {
   if (user.role === "TENANT") {
     const [profile, rents, bills, documents, complaints, notifications, receipts] = await Promise.all([
       prisma.user.findUnique({ where: { id: user.id }, select: { admin: { select: { name: true, email: true } } } }),
-      prisma.rentRecord.findMany({ where: { tenantId: user.id }, include: { property: { select: { name: true } } }, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }], take: 6 }),
-      prisma.utilityBill.findMany({ where: { tenantId: user.id }, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }], take: 12 }),
-      prisma.rentalDocument.findMany({ where: { tenantId: user.id }, select: { kind: true, status: true, agreementEnd: true } }),
-      prisma.complaint.findMany({ where: { tenantId: user.id }, orderBy: { createdAt: "desc" }, take: 10 }),
+      prisma.rentRecord.findMany({ where: { tenantId: user.id, isDeleted: false }, include: { property: { select: { name: true } } }, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }], take: 6 }),
+      prisma.utilityBill.findMany({ where: { tenantId: user.id, isDeleted: false }, orderBy: [{ billingYear: "desc" }, { billingMonth: "desc" }], take: 12 }),
+      prisma.rentalDocument.findMany({ where: { tenantId: user.id, isDeleted: false }, select: { kind: true, status: true, agreementEnd: true } }),
+      prisma.complaint.findMany({ where: { tenantId: user.id, isDeleted: false }, orderBy: { createdAt: "desc" }, take: 10 }),
       prisma.notification.findMany({ where: { userId: user.id, isRead: false }, orderBy: { createdAt: "desc" }, take: 10 }),
-      prisma.rentReceipt.findMany({ where: { tenantId: user.id }, orderBy: { verifiedAt: "desc" }, take: 5 })
+      prisma.rentReceipt.findMany({ where: { tenantId: user.id, isDeleted: false }, orderBy: { verifiedAt: "desc" }, take: 5 })
     ]);
     const latestRent = rents[0]; const latestElectricity = bills.find((item) => item.billType === "ELECTRICITY"); const latestWater = bills.find((item) => item.billType === "WATER"); const id = documents.find((item) => item.kind === "ID_PROOF"); const agreement = documents.find((item) => item.kind === "AGREEMENT");
     let reply: string;
@@ -46,11 +46,11 @@ export async function POST(request: Request) {
 
   if (user.role === "ADMIN") {
     const [tenants, rents, bills, documents, complaints] = await Promise.all([
-      prisma.user.findMany({ where: { role: "TENANT", adminId: user.id, status: "ACTIVE" }, select: { name: true } }),
-      prisma.rentRecord.findMany({ where: { adminId: user.id }, include: { tenant: { select: { name: true } } } }),
-      prisma.utilityBill.findMany({ where: { adminId: user.id }, include: { tenant: { select: { name: true } } } }),
-      prisma.rentalDocument.findMany({ where: { adminId: user.id }, include: { tenant: { select: { name: true } } } }),
-      prisma.complaint.findMany({ where: { ownerId: user.id }, include: { tenant: { select: { name: true } } } })
+      prisma.user.findMany({ where: { role: "TENANT", adminId: user.id, status: "ACTIVE", isDeleted: false }, select: { name: true } }),
+      prisma.rentRecord.findMany({ where: { adminId: user.id, isDeleted: false }, include: { tenant: { select: { name: true } } } }),
+      prisma.utilityBill.findMany({ where: { adminId: user.id, isDeleted: false }, include: { tenant: { select: { name: true } } } }),
+      prisma.rentalDocument.findMany({ where: { adminId: user.id, isDeleted: false }, include: { tenant: { select: { name: true } } } }),
+      prisma.complaint.findMany({ where: { ownerId: user.id, isDeleted: false }, include: { tenant: { select: { name: true } } } })
     ]);
     const pendingRents = rents.filter((item) => item.adminVerificationStatus === "PENDING"); const overdue = rents.filter((item) => item.adminVerificationStatus === "OVERDUE"); const marked = rents.filter((item) => item.tenantPaymentStatus === "TENANT_MARKED_PAID" && item.adminVerificationStatus === "PENDING"); const pendingIds = documents.filter((item) => item.kind === "ID_PROOF" && item.status === "PENDING"); const pendingAgreements = documents.filter((item) => item.kind === "AGREEMENT" && item.status === "PENDING"); const openComplaints = complaints.filter((item) => !["RESOLVED", "REJECTED"].includes(item.status)); const verified = rents.filter((item) => item.adminVerificationStatus === "VERIFIED_PAID").length; const collection = rents.length ? Math.round((verified / rents.length) * 100) : 0;
     let reply: string;
@@ -67,11 +67,11 @@ export async function POST(request: Request) {
 
   const onlineCutoff = new Date(Date.now() - 2 * 60 * 1000);
   const [owners, tenantCount, online, sessionsToday, pendingRents, pendingBills, pendingDocs, complaints, reports] = await Promise.all([
-    prisma.user.findMany({ where: { role: "ADMIN" }, select: { name: true, _count: { select: { tenants: true } }, administeredRent: { select: { adminVerificationStatus: true } }, administeredBills: { select: { adminVerificationStatus: true } } } }),
-    prisma.user.count({ where: { role: "TENANT" } }), prisma.userSession.findMany({ where: { isOnline: true, lastActiveAt: { gte: onlineCutoff } }, select: { role: true, deviceType: true } }),
+    prisma.user.findMany({ where: { role: "ADMIN", isDeleted: false }, select: { name: true, _count: { select: { tenants: { where: { isDeleted: false } } } }, administeredRent: { where: { isDeleted: false }, select: { adminVerificationStatus: true } }, administeredBills: { where: { isDeleted: false }, select: { adminVerificationStatus: true } } } }),
+    prisma.user.count({ where: { role: "TENANT", isDeleted: false } }), prisma.userSession.findMany({ where: { isOnline: true, lastActiveAt: { gte: onlineCutoff }, user: { isDeleted: false } }, select: { role: true, deviceType: true } }),
     prisma.userSession.findMany({ where: { loginAt: { gte: new Date(new Date().setHours(0,0,0,0)) } }, select: { userId: true, deviceType: true } }),
-    prisma.rentRecord.count({ where: { adminVerificationStatus: "PENDING" } }), prisma.utilityBill.count({ where: { adminVerificationStatus: "PENDING" } }), prisma.rentalDocument.count({ where: { status: "PENDING" } }),
-    prisma.complaint.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] } }, include: { owner: { select: { name: true } } } }), prisma.supportRequest.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } })
+    prisma.rentRecord.count({ where: { adminVerificationStatus: "PENDING", isDeleted: false } }), prisma.utilityBill.count({ where: { adminVerificationStatus: "PENDING", isDeleted: false } }), prisma.rentalDocument.count({ where: { status: "PENDING", isDeleted: false } }),
+    prisma.complaint.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] }, isDeleted: false }, include: { owner: { select: { name: true } } } }), prisma.supportRequest.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] }, isDeleted: false } })
   ]);
   const ownerRows = owners.map((item) => ({ name: item.name, tenants: item._count.tenants, pending: item.administeredRent.filter((row) => row.adminVerificationStatus === "PENDING").length + item.administeredBills.filter((row) => row.adminVerificationStatus === "PENDING").length })); const topPending = ownerRows.sort((a,b) => b.pending - a.pending)[0]; const device = Object.entries(sessionsToday.reduce<Record<string,number>>((acc,item)=>{acc[item.deviceType]=(acc[item.deviceType]||0)+1;return acc;},{})).sort((a,b)=>b[1]-a[1])[0];
   let reply: string;

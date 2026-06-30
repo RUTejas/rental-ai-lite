@@ -9,7 +9,7 @@ const schema = z.object({ title: z.string().trim().min(3).max(120), category: z.
 export async function GET() {
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const where = user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { ownerId: user.id } : { tenantId: user.id };
-  const complaints = await prisma.complaint.findMany({ where, include: { tenant: { select: { id: true, name: true, email: true } }, owner: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "desc" } });
+  const complaints = await prisma.complaint.findMany({ where: { ...where, isDeleted: false }, include: { tenant: { select: { id: true, name: true, email: true } }, owner: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "desc" } });
   return NextResponse.json({ complaints });
 }
 

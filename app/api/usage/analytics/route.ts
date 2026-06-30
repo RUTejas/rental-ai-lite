@@ -15,11 +15,11 @@ export async function GET() {
   const month = new Date(today); month.setDate(1);
   await prisma.userSession.updateMany({ where: { isOnline: true, lastActiveAt: { lt: onlineCutoff } }, data: { isOnline: false } });
   const [registered, allSessions, recentEvents, newToday, users] = await Promise.all([
-    prisma.user.count(),
-    prisma.userSession.findMany({ include: { user: { select: { id: true, name: true, email: true, role: true, ageGroup: true } } }, orderBy: { lastActiveAt: "desc" }, take: 2000 }),
-    prisma.userAnalyticsEvent.findMany({ where: { createdAt: { gte: month } }, orderBy: { createdAt: "asc" }, take: 10000 }),
-    prisma.user.count({ where: { createdAt: { gte: today } } }),
-    prisma.user.findMany({ select: { id: true, ageGroup: true } })
+    prisma.user.count({ where: { isDeleted: false } }),
+    prisma.userSession.findMany({ where: { user: { isDeleted: false } }, include: { user: { select: { id: true, name: true, email: true, role: true, ageGroup: true } } }, orderBy: { lastActiveAt: "desc" }, take: 2000 }),
+    prisma.userAnalyticsEvent.findMany({ where: { createdAt: { gte: month }, user: { isDeleted: false } }, orderBy: { createdAt: "asc" }, take: 10000 }),
+    prisma.user.count({ where: { createdAt: { gte: today }, isDeleted: false } }),
+    prisma.user.findMany({ where: { isDeleted: false }, select: { id: true, ageGroup: true } })
   ]);
   const online = allSessions.filter((item) => item.isOnline && item.lastActiveAt >= onlineCutoff);
   const activeToday = allSessions.filter((item) => item.lastActiveAt >= today);

@@ -6,16 +6,16 @@ export async function GET() {
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const scope = user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { adminId: user.id } : { tenantId: user.id };
   const [rents, bills, documents, properties, adminCount, tenantCount, supportOpen, complaints] = await Promise.all([
-    prisma.rentRecord.findMany({ where: scope, select: { billingMonth: true, billingYear: true, amount: true, tenantPaymentStatus: true, adminVerificationStatus: true, adminId: true } }),
-    prisma.utilityBill.findMany({ where: scope, select: { billType: true, billingMonth: true, billingYear: true, amount: true, tenantPaymentStatus: true, adminVerificationStatus: true, adminId: true } }),
-    prisma.rentalDocument.findMany({ where: scope, select: { kind: true, status: true } }),
-    prisma.property.findMany({ where: user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { adminId: user.id } : { tenantId: user.id }, select: { id: true, adminId: true, tenantId: true, name: true, address: true, unit: true, monthlyRent: true, status: true } }),
-    user.role === "MASTER_ADMIN" ? prisma.user.count({ where: { role: "ADMIN" } }) : Promise.resolve(user.role === "ADMIN" ? 1 : 0),
-    prisma.user.count({ where: user.role === "MASTER_ADMIN" ? { role: "TENANT" } : user.role === "ADMIN" ? { role: "TENANT", adminId: user.id, status: "ACTIVE" } : { id: user.id } }),
-    user.role === "MASTER_ADMIN" ? prisma.supportRequest.count({ where: { status: "OPEN" } }) : Promise.resolve(0),
-    prisma.complaint.findMany({ where: user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { ownerId: user.id } : { tenantId: user.id }, select: { status: true, ownerId: true } })
+    prisma.rentRecord.findMany({ where: { ...scope, isDeleted: false }, select: { billingMonth: true, billingYear: true, amount: true, tenantPaymentStatus: true, adminVerificationStatus: true, adminId: true } }),
+    prisma.utilityBill.findMany({ where: { ...scope, isDeleted: false }, select: { billType: true, billingMonth: true, billingYear: true, amount: true, tenantPaymentStatus: true, adminVerificationStatus: true, adminId: true } }),
+    prisma.rentalDocument.findMany({ where: { ...scope, isDeleted: false }, select: { kind: true, status: true } }),
+    prisma.property.findMany({ where: { ...(user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { adminId: user.id } : { tenantId: user.id }), isDeleted: false }, select: { id: true, adminId: true, tenantId: true, name: true, address: true, unit: true, monthlyRent: true, status: true } }),
+    user.role === "MASTER_ADMIN" ? prisma.user.count({ where: { role: "ADMIN", isDeleted: false } }) : Promise.resolve(user.role === "ADMIN" ? 1 : 0),
+    prisma.user.count({ where: { ...(user.role === "MASTER_ADMIN" ? { role: "TENANT" as const } : user.role === "ADMIN" ? { role: "TENANT" as const, adminId: user.id, status: "ACTIVE" as const } : { id: user.id }), isDeleted: false } }),
+    user.role === "MASTER_ADMIN" ? prisma.supportRequest.count({ where: { status: "OPEN", isDeleted: false } }) : Promise.resolve(0),
+    prisma.complaint.findMany({ where: { ...(user.role === "MASTER_ADMIN" ? {} : user.role === "ADMIN" ? { ownerId: user.id } : { tenantId: user.id }), isDeleted: false }, select: { status: true, ownerId: true } })
   ]);
-  const owners = user.role === "MASTER_ADMIN" ? await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true, name: true, email: true, _count: { select: { tenants: true, administeredBills: true, administeredRent: true } } }, orderBy: { name: "asc" } }) : [];
+  const owners = user.role === "MASTER_ADMIN" ? await prisma.user.findMany({ where: { role: "ADMIN", isDeleted: false }, select: { id: true, name: true, email: true, _count: { select: { tenants: { where: { isDeleted: false } }, administeredBills: { where: { isDeleted: false } }, administeredRent: { where: { isDeleted: false } } } } }, orderBy: { name: "asc" } }) : [];
   const monthMap = new Map<string, { month: string; rentPaid: number; rentPending: number; electricity: number; water: number }>();
   const bucket = (year: number, month: number) => { const key = `${year}-${String(month).padStart(2, "0")}`; if (!monthMap.has(key)) monthMap.set(key, { month: key, rentPaid: 0, rentPending: 0, electricity: 0, water: 0 }); return monthMap.get(key)!; };
   rents.forEach((rent) => { const row = bucket(rent.billingYear, rent.billingMonth); if (rent.adminVerificationStatus === "VERIFIED_PAID") row.rentPaid += Number(rent.amount); else row.rentPending += Number(rent.amount); });
@@ -33,7 +33,7 @@ export async function GET() {
       agreements: countDocument("AGREEMENT"), verifiedAgreements: countDocument("AGREEMENT", "VERIFIED"), rejectedAgreements: countDocument("AGREEMENT", "REJECTED"),
       idProofs: countDocument("ID_PROOF"), verifiedIdProofs: countDocument("ID_PROOF", "VERIFIED"), rejectedIdProofs: countDocument("ID_PROOF", "REJECTED"),
       verifiedDocuments: documents.filter((item) => item.status === "VERIFIED").length, pendingDocuments: documents.filter((item) => item.status === "PENDING").length,
-      openSupport: supportOpen, totalSupport: user.role === "MASTER_ADMIN" ? await prisma.supportRequest.count() : 0,
+      openSupport: supportOpen, totalSupport: user.role === "MASTER_ADMIN" ? await prisma.supportRequest.count({ where: { isDeleted: false } }) : 0,
       complaints: complaints.length, openComplaints: complaints.filter((item) => item.status === "NEW" || item.status === "IN_PROGRESS").length
     },
     monthly: Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month)).slice(-8),

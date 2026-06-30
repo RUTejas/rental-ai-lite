@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const { id } = await params;
-  const where = user.role === "TENANT" ? { id, tenantId: user.id } : user.role === "ADMIN" ? { id, adminId: user.id } : { id };
+  const where = user.role === "TENANT" ? { id, tenantId: user.id, isDeleted: false } : user.role === "ADMIN" ? { id, adminId: user.id, isDeleted: false } : { id, isDeleted: false };
   const document = await prisma.rentalDocument.findFirst({ where, select: { fileData: true, fileName: true, mimeType: true } });
   if (!document) return NextResponse.json({ error: "Document not found." }, { status: 404 });
   const base64 = document.fileData.includes(",") ? document.fileData.split(",")[1] : document.fileData;

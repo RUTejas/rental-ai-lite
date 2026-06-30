@@ -12,13 +12,14 @@ export async function GET(request: Request) {
   const owners = await prisma.user.findMany({
     where: {
       role: "ADMIN",
+      isDeleted: false,
       ...(status && status !== "ALL" ? { status: status as "ACTIVE" | "PENDING" | "BLOCKED" } : {}),
       ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {})
     },
     select: {
       id: true, name: true, email: true, phone: true, status: true, createdAt: true, updatedAt: true,
-      tenants: { select: { id: true, name: true, email: true, status: true }, orderBy: { name: "asc" } },
-      propertiesOwned: { select: { id: true, name: true, address: true, status: true } },
+      tenants: { where: { isDeleted: false }, select: { id: true, name: true, email: true, status: true }, orderBy: { name: "asc" } },
+      propertiesOwned: { where: { isDeleted: false }, select: { id: true, name: true, address: true, status: true } },
       _count: { select: { tenants: true, administeredBills: true, administeredRent: true, administeredDocuments: true, propertiesOwned: true } }
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }]

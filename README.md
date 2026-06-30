@@ -77,10 +77,11 @@ Set these values in `.env` before running the database commands:
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 SESSION_SECRET="a-long-random-secret"
-MASTER_ADMIN_EMAIL="master-admin@example.com"
+MASTER_ADMIN_ALLOWED_EMAIL="master-admin@example.com"
 MASTER_ADMIN_PASSWORD="a-unique-strong-password"
 MASTER_ADMIN_SETUP_KEY="a-separate-random-setup-and-recovery-key"
 MASTER_ADMIN_INVITE_CODE="an-optional-separate-one-time-invite-code"
+MASTER_ADMIN_CREATION_ENABLED="false"
 ```
 
 Generate a suitable session secret in PowerShell with:
@@ -101,7 +102,7 @@ After `npm run db:seed`, use:
 | Tenant | `kabir.tenant@rentwise.ai` | `Tenant@22345` |
 | Tenant | `anaya.tenant@rentwise.ai` | `Tenant@32345` |
 
-The seed creates Master Admin only when `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD` are configured. If none exists, visit `/master-admin`; the one-time setup option accepts `MASTER_ADMIN_SETUP_KEY` and permanently closes after creation. Never expose these three values in client code.
+The seed creates or updates the single Master Admin only when `MASTER_ADMIN_ALLOWED_EMAIL` and `MASTER_ADMIN_PASSWORD` are configured. The private `/master-admin` route accepts only that allowlisted email. For first-time web setup, temporarily set `MASTER_ADMIN_CREATION_ENABLED=true`; setup permanently closes after the account exists, then set the flag back to `false`. Never expose these values in client code.
 
 ## Test the complete bill flow
 
@@ -133,7 +134,7 @@ The API independently checks these boundaries; hiding controls in the interface 
 4. Go to Vercel and click **Add New Project**.
 5. Import the GitHub repository. Keep the repository root as the Root Directory.
 6. Confirm the Framework Preset is **Next.js**.
-7. Add `DATABASE_URL`, `SESSION_SECRET`, `MASTER_ADMIN_EMAIL`, `MASTER_ADMIN_PASSWORD`, and `MASTER_ADMIN_SETUP_KEY` in **Project Settings → Environment Variables**. Use different high-entropy values for the password and setup key.
+7. Add `DATABASE_URL`, `SESSION_SECRET`, `MASTER_ADMIN_ALLOWED_EMAIL`, `MASTER_ADMIN_PASSWORD`, `MASTER_ADMIN_SETUP_KEY`, and `MASTER_ADMIN_CREATION_ENABLED=false` in **Project Settings → Environment Variables**. Use different high-entropy values for the password and setup key.
 8. Click **Deploy**.
 
 `vercel.json` supplies the install, development, and build commands. After deployment, no long-running backend service is required: authentication and bill operations run as Next.js route handlers on Vercel.
