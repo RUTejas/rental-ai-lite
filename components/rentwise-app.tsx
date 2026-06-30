@@ -6,15 +6,16 @@ import {
   Activity, ArrowRight, BadgeIndianRupee, Bell, Building2, Check, ChevronRight,
   CircleDollarSign, Droplets, Eye, EyeOff, FileCheck2, Gauge, Home, LayoutDashboard,
   Loader2, LogOut, Menu, Pencil, Plus, ReceiptText, ShieldCheck, Sparkles,
-  Trash2, UserRound, UsersRound, WalletCards, X, Zap
+  Trash2, UserRound, UsersRound, WalletCards, X, Zap, BarChart3, FileText, KeyRound, LifeBuoy
 } from "lucide-react";
+import { AnalyticsView, DocumentsView, RentView, type AnalyticsData, type RentalDocumentData, type RentData } from "@/components/rental-workflows";
 
 type Role = "MASTER_ADMIN" | "ADMIN" | "TENANT";
 type SessionUser = { id: string; name: string; email: string; role: Role };
 type Person = { id: string; name: string; email: string };
 type TenantStatus = "NOT_MARKED" | "TENANT_MARKED_PAID" | "TENANT_MARKED_NOT_PAID";
 type AdminStatus = "PENDING" | "VERIFIED_PAID" | "UNPAID" | "OVERDUE" | "WAIVED" | "REJECTED_CLAIM";
-type View = "overview" | "bills" | "tenants";
+type View = "overview" | "analytics" | "rent" | "bills" | "documents" | "tenants";
 type Bill = {
   id: string; adminId: string; tenantId: string; billType: "ELECTRICITY" | "WATER";
   billingMonth: number; billingYear: number; amount: number; dueDate: string;
@@ -45,10 +46,13 @@ export function RentWiseApp() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [tenants, setTenants] = useState<Person[]>([]);
+  const [rents, setRents] = useState<RentData[]>([]);
+  const [documents, setDocuments] = useState<RentalDocumentData[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("overview");
-  const [authMode, setAuthMode] = useState<"login" | "signup" | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "support" | "help" | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
 
@@ -56,7 +60,11 @@ export function RentWiseApp() {
     setToast({ type, text }); window.setTimeout(() => setToast(null), 4200);
   }, []);
   const loadData = useCallback(async (current: SessionUser) => {
-    const data = await request<{ bills: Bill[] }>("/api/bills"); setBills(data.bills);
+    const [billData, rentData, documentData, analyticsData] = await Promise.all([
+      request<{ bills: Bill[] }>("/api/bills"), request<{ rents: RentData[] }>("/api/rents"),
+      request<{ documents: RentalDocumentData[] }>("/api/documents"), request<AnalyticsData>("/api/analytics")
+    ]);
+    setBills(billData.bills); setRents(rentData.rents); setDocuments(documentData.documents); setAnalytics(analyticsData);
     if (current.role === "ADMIN") {
       const people = await request<{ tenants: Person[] }>("/api/tenants"); setTenants(people.tenants);
     }
@@ -81,7 +89,7 @@ export function RentWiseApp() {
   }
   async function logout() {
     setBusy(true); await request("/api/auth/logout", { method: "POST" });
-    setUser(null); setBills([]); setTenants([]); setView("overview"); setMobileNav(false); setBusy(false);
+    setUser(null); setBills([]); setTenants([]); setRents([]); setDocuments([]); setAnalytics(null); setView("overview"); setMobileNav(false); setBusy(false);
     window.history.replaceState({}, "", "/"); notify("success", "You have signed out safely.");
   }
 
@@ -90,19 +98,19 @@ export function RentWiseApp() {
     <>
       {user ? (
         <Dashboard
-          user={user} bills={bills} tenants={tenants} view={view} mobileNav={mobileNav}
+          user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} view={view} mobileNav={mobileNav}
           setMobileNav={setMobileNav} setView={setView} onLogout={logout} onNotify={notify}
-          setBills={setBills} setTenants={setTenants}
+          setBills={setBills} setTenants={setTenants} setRents={setRents} setDocuments={setDocuments} setAnalytics={setAnalytics}
         />
       ) : <Landing onAuth={setAuthMode} />}
-      {authMode && <AuthModal mode={authMode} setMode={setAuthMode} busy={busy} onSubmit={authenticate} />}
+      {authMode && <AuthModal mode={authMode} setMode={setAuthMode} busy={busy} onSubmit={authenticate} onNotify={notify} />}
       {busy && <div className="global-busy"><Loader2 size={22} className="spin" /> Working…</div>}
       {toast && <div className={`toast toast-${toast.type}`} role="status">{toast.type === "success" ? <Check size={18} /> : <Activity size={18} />}{toast.text}</div>}
     </>
   );
 }
 
-function Landing({ onAuth }: { onAuth: (mode: "login" | "signup") => void }) {
+function Landing({ onAuth }: { onAuth: (mode: "login" | "signup" | "forgot" | "support" | "help") => void }) {
   const scroll = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   return <main className="landing">
     <nav className="landing-nav">
@@ -128,60 +136,67 @@ function Landing({ onAuth }: { onAuth: (mode: "login" | "signup") => void }) {
       <RoleCard icon={UserRound} label="Tenant / User" text="See bills, add notes, and report paid or unpaid status." onClick={() => onAuth("login")} />
     </div></section>
     <section className="how-section" id="how"><div><p className="kicker">A clean four-step record</p><h2>From bill to verified status.</h2></div>{["Owner adds a bill", "Tenant reports payment", "Owner verifies the claim", "Master Admin monitors"].map((step, index) => <article key={step}><span>0{index + 1}</span><b>{step}</b></article>)}</section>
-    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><p>Premium rental clarity without online payment processing.</p><small>Created and Developed by Tejas R U</small></footer>
+    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><div className="footer-links"><button onClick={() => onAuth("help")}>Troubleshooting</button><button onClick={() => onAuth("support")}>Report access issue</button></div><small>Created and Developed by Tejas R U</small></footer>
   </main>;
 }
 
 function Feature({ icon: Icon, title, text }: { icon: typeof Home; title: string; text: string }) { return <article className="feature-card"><span><Icon size={22} /></span><h3>{title}</h3><p>{text}</p></article>; }
 function RoleCard({ icon: Icon, label, text, onClick }: { icon: typeof Home; label: string; text: string; onClick: () => void }) { return <button className="role-card" onClick={onClick}><Icon size={25} /><h3>{label}</h3><p>{text}</p><span>Open demo <ChevronRight size={16} /></span></button>; }
 
-function AuthModal({ mode, setMode, busy, onSubmit }: { mode: "login" | "signup"; setMode: (mode: "login" | "signup" | null) => void; busy: boolean; onSubmit: (payload: Record<string, unknown>, mode: "login" | "signup") => void }) {
+function AuthModal({ mode, setMode, busy, onSubmit, onNotify }: { mode: "login" | "signup" | "forgot" | "support" | "help"; setMode: (mode: "login" | "signup" | "forgot" | "support" | "help" | null) => void; busy: boolean; onSubmit: (payload: Record<string, unknown>, mode: "login" | "signup") => void; onNotify: (type: "success" | "error", text: string) => void }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [role, setRole] = useState<"ADMIN" | "TENANT">("TENANT");
-  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); onSubmit(Object.fromEntries(form), mode); }
-  return <div className="modal-backdrop" role="dialog" aria-modal="true"><section className="auth-modal"><button className="icon-button close" aria-label="Close" onClick={() => setMode(null)}><X /></button><div className="auth-brand"><span>RW</span><div><p className="kicker">Secure rental portal</p><h2>{mode === "login" ? "Welcome home." : "Create your account."}</h2></div></div>
-    <form onSubmit={submit}>
-      {mode === "signup" && <><label>Full name<input name="name" placeholder="Your full name" minLength={2} required /></label><div className="role-toggle"><button type="button" className={role === "TENANT" ? "active" : ""} onClick={() => setRole("TENANT")}>Tenant</button><button type="button" className={role === "ADMIN" ? "active" : ""} onClick={() => setRole("ADMIN")}>Owner / Admin</button></div><input type="hidden" name="role" value={role} />{role === "TENANT" && <label>Owner/admin email<input type="email" name="adminEmail" placeholder="owner@example.com" required /></label>}</>}
+  const [owners, setOwners] = useState<Array<{ id: string; name: string; email: string; properties: string[] }>>([]);
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => { if (mode === "signup") request<{ owners: typeof owners }>("/api/owners").then((data) => setOwners(data.owners)).catch(() => setOwners([])); }, [mode]);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget)); if (mode === "login" || mode === "signup") return onSubmit(payload, mode); setSubmitting(true); try { if (mode === "forgot") { const data = await request<{ message: string }>("/api/auth/forgot", { method: "POST", body: JSON.stringify(payload) }); onNotify("success", data.message); setMode("login"); } else { const data = await request<{ ticketId: string }>("/api/support", { method: "POST", body: JSON.stringify(payload) }); onNotify("success", `Support request ${data.ticketId.slice(-6)} was created.`); setMode("login"); } } catch (error) { onNotify("error", error instanceof Error ? error.message : "Unable to submit request."); } finally { setSubmitting(false); } }
+  const title = mode === "login" ? "Welcome home." : mode === "signup" ? "Create your account." : mode === "forgot" ? "Recover account access." : mode === "support" ? "Tell us what went wrong." : "Account access help.";
+  return <div className="modal-backdrop" role="dialog" aria-modal="true"><section className="auth-modal"><button className="icon-button close" aria-label="Close" onClick={() => setMode(null)}><X /></button><div className="auth-brand"><span>RW</span><div><p className="kicker">Secure rental portal</p><h2>{title}</h2></div></div>
+    {mode === "help" ? <div className="help-panel"><article><KeyRound /><div><b>Forgotten password?</b><p>Submit a secure recovery request for support review.</p><button onClick={() => setMode("forgot")}>Start recovery</button></div></article><article><LifeBuoy /><div><b>Sign-in or registration issue?</b><p>Send the problem details and receive a trackable ticket.</p><button onClick={() => setMode("support")}>Report issue</button></div></article><button className="primary-action" onClick={() => setMode("login")}>Return to sign in</button></div> : <form onSubmit={submit}>
+      {mode === "signup" && <><label>Full name<input name="name" placeholder="Your full name" minLength={2} required /></label><div className="role-toggle"><button type="button" className={role === "TENANT" ? "active" : ""} onClick={() => setRole("TENANT")}>Tenant</button><button type="button" className={role === "ADMIN" ? "active" : ""} onClick={() => setRole("ADMIN")}>Owner / Admin</button></div><input type="hidden" name="role" value={role} />{role === "TENANT" && <><label>Search approved owners<input value={ownerSearch} onChange={(event) => setOwnerSearch(event.target.value)} placeholder="Owner, email, or property" /></label><label>Select your approved owner<select name="adminId" required defaultValue=""><option value="" disabled>Choose owner / property</option>{owners.filter((owner) => `${owner.name} ${owner.email} ${owner.properties.join(" ")}`.toLowerCase().includes(ownerSearch.toLowerCase())).map((owner) => <option value={owner.id} key={owner.id}>{owner.name} · {owner.properties.join(", ") || "Property pending"} · {owner.email}</option>)}</select></label></>}</>}
       <label>Email address<input type="email" name="email" placeholder="you@example.com" autoComplete="email" required /></label>
-      <label>Password<div className="password-field"><input type={passwordVisible ? "text" : "password"} name="password" placeholder={mode === "signup" ? "At least 8 characters" : "Your password"} minLength={mode === "signup" ? 8 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" aria-label={passwordVisible ? "Hide password" : "Show password"} onClick={() => setPasswordVisible(!passwordVisible)}>{passwordVisible ? <EyeOff /> : <Eye />}</button></div></label>
-      <button className="primary-action" disabled={busy}>{busy ? <Loader2 className="spin" /> : mode === "login" ? "Sign in securely" : "Create account"}<ArrowRight size={17} /></button>
-    </form>
+      {(mode === "login" || mode === "signup") && <label>Password<div className="password-field"><input type={passwordVisible ? "text" : "password"} name="password" placeholder={mode === "signup" ? "At least 8 characters" : "Your password"} minLength={mode === "signup" ? 8 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" aria-label={passwordVisible ? "Hide password" : "Show password"} onClick={() => setPasswordVisible(!passwordVisible)}>{passwordVisible ? <EyeOff /> : <Eye />}</button></div></label>}
+      {mode === "support" && <><label>Name<input name="name" placeholder="Your name (optional)" /></label><input type="hidden" name="category" value="ACCOUNT_ACCESS" /><label>What happened?<textarea name="message" placeholder="Describe the login, sign-in, or create-account issue" minLength={10} required /></label></>}
+      <button className="primary-action" disabled={busy || submitting}>{busy || submitting ? <Loader2 className="spin" /> : mode === "login" ? "Sign in securely" : mode === "signup" ? "Create account" : mode === "forgot" ? "Request recovery" : "Submit support ticket"}<ArrowRight size={17} /></button>
+    </form>}
     {mode === "login" && <div className="demo-panel"><span>One-click demo access</span>{demos.map(([label, email, password, Icon]) => <button key={label} onClick={() => onSubmit({ email, password }, "login")} disabled={busy}><Icon size={16} />{label}</button>)}</div>}
-    <p className="auth-switch">{mode === "login" ? "New to RentWise?" : "Already registered?"} <button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "Create account" : "Sign in"}</button></p>
+    {mode === "login" && <div className="auth-links"><button onClick={() => setMode("forgot")}>Forgot password?</button><button onClick={() => setMode("support")}>Report sign-in issue</button></div>}
+    {(mode === "login" || mode === "signup") && <p className="auth-switch">{mode === "login" ? "New to RentWise?" : "Already registered?"} <button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "Create account" : "Sign in"}</button></p>}
   </section></div>;
 }
 
-function Dashboard({ user, bills, tenants, view, mobileNav, setMobileNav, setView, onLogout, onNotify, setBills, setTenants }: {
-  user: SessionUser; bills: Bill[]; tenants: Person[]; view: View; mobileNav: boolean;
+function Dashboard({ user, bills, tenants, rents, documents, analytics, view, mobileNav, setMobileNav, setView, onLogout, onNotify, setBills, setTenants, setRents, setDocuments }: {
+  user: SessionUser; bills: Bill[]; tenants: Person[]; rents: RentData[]; documents: RentalDocumentData[]; analytics: AnalyticsData | null; view: View; mobileNav: boolean;
   setMobileNav: (open: boolean) => void; setView: (view: View) => void; onLogout: () => void;
-  onNotify: (type: "success" | "error", text: string) => void; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; setTenants: React.Dispatch<React.SetStateAction<Person[]>>;
+  onNotify: (type: "success" | "error", text: string) => void; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; setTenants: React.Dispatch<React.SetStateAction<Person[]>>; setRents: React.Dispatch<React.SetStateAction<RentData[]>>; setDocuments: React.Dispatch<React.SetStateAction<RentalDocumentData[]>>; setAnalytics: React.Dispatch<React.SetStateAction<AnalyticsData | null>>;
 }) {
-  const nav = [{ id: "overview" as View, label: "Overview", icon: LayoutDashboard }, { id: "bills" as View, label: user.role === "TENANT" ? "My bills" : user.role === "MASTER_ADMIN" ? "All utility bills" : "Utility bills", icon: ReceiptText }, ...(user.role === "ADMIN" ? [{ id: "tenants" as View, label: "Tenants", icon: UsersRound }] : [])];
+  const nav = [{ id: "overview" as View, label: "Overview", icon: LayoutDashboard }, ...(user.role !== "TENANT" ? [{ id: "analytics" as View, label: "Analytics", icon: BarChart3 }] : []), { id: "rent" as View, label: user.role === "TENANT" ? "My rent" : "Rent tracking", icon: WalletCards }, { id: "bills" as View, label: user.role === "TENANT" ? "My bills" : user.role === "MASTER_ADMIN" ? "All utility bills" : "Utility bills", icon: ReceiptText }, { id: "documents" as View, label: user.role === "TENANT" ? "My documents" : "Documents", icon: FileText }, ...(user.role === "ADMIN" ? [{ id: "tenants" as View, label: "Tenants", icon: UsersRound }] : [])];
   const changeView = (next: View) => { setView(next); setMobileNav(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
   return <div className="dashboard-shell">
     <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""}`}><div className="dash-brand"><span>RW</span><div><b>RentWise Lite</b><small>Rental clarity</small></div><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X /></button></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => changeView(id)}><Icon size={19} />{label}</button>)}</nav><div className="side-help"><Sparkles size={18} /><b>Clear records, calmer rentals.</b><p>Every status is visible to the right people.</p></div><div className="side-user"><Avatar name={user.name} /><div><b>{user.name}</b><small>{roleName(user.role)}</small></div><button className="icon-button" onClick={onLogout} aria-label="Sign out"><LogOut size={18} /></button></div></aside>
     {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
     <main className="dashboard-main"><header className="dash-topbar"><button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu /></button><div><p>{roleName(user.role)} portal</p><h1>{viewTitle(view, user.role)}</h1></div><div className="top-actions"><button className="icon-button notification" aria-label="Notifications" onClick={() => onNotify("success", "You’re all caught up—no new notifications.")}><Bell /><span /></button><Avatar name={user.name} /></div></header>
-      {view === "overview" && <Overview user={user} bills={bills} tenants={tenants} onView={changeView} />}
+      {view === "overview" && <Overview user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} onView={changeView} />}
+      {view === "analytics" && user.role !== "TENANT" && <AnalyticsView data={analytics} role={user.role} notify={onNotify} />}
+      {view === "rent" && <RentView role={user.role} rents={rents} setRents={setRents} tenants={tenants} properties={analytics?.properties || []} notify={onNotify} />}
       {view === "bills" && <BillsView user={user} bills={bills} tenants={tenants} setBills={setBills} onNotify={onNotify} />}
+      {view === "documents" && <DocumentsView role={user.role} documents={documents} setDocuments={setDocuments} notify={onNotify} />}
       {view === "tenants" && user.role === "ADMIN" && <TenantDirectory tenants={tenants} setTenants={setTenants} onNotify={onNotify} />}
       <footer className="dash-footer">RentWise Lite · Manual status tracking only · Created and Developed by Tejas R U</footer>
     </main>
   </div>;
 }
 
-function Overview({ user, bills, tenants, onView }: { user: SessionUser; bills: Bill[]; tenants: Person[]; onView: (view: View) => void }) {
+function Overview({ user, bills, tenants, rents, documents, analytics, onView }: { user: SessionUser; bills: Bill[]; tenants: Person[]; rents: RentData[]; documents: RentalDocumentData[]; analytics: AnalyticsData | null; onView: (view: View) => void }) {
   const pending = bills.filter((b) => b.adminVerificationStatus === "PENDING").length;
-  const paid = bills.filter((b) => b.adminVerificationStatus === "VERIFIED_PAID").length;
-  const attention = bills.filter((b) => ["UNPAID", "OVERDUE", "REJECTED_CLAIM"].includes(b.adminVerificationStatus)).length;
-  const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
   return <div className="view-stack"><section className="welcome-card"><div><p className="kicker">Good to see you, {user.name.split(" ")[0]}</p><h2>{overviewHeading(user.role)}</h2><p>{overviewText(user.role)}</p><button onClick={() => onView("bills")}>Review utility records <ArrowRight size={17} /></button></div><div className="welcome-art"><Home size={55} /><span>{bills.length} active records</span></div></section>
-    <section className="stats-grid"><Stat icon={ReceiptText} label="Utility records" value={bills.length} note="Electricity and water" /><Stat icon={WalletCards} label="Total billed" value={money(total)} note="Current visible records" /><Stat icon={Activity} label="Pending review" value={pending} note="Awaiting final status" /><Stat icon={Check} label="Verified paid" value={paid} note={attention ? `${attention} need attention` : "Nothing overdue"} /></section>
+    <section className="stats-grid"><Stat icon={ReceiptText} label="Utility records" value={bills.length} note="Electricity and water" /><Stat icon={WalletCards} label="Rent records" value={rents.length} note={`${analytics?.properties.length || 0} linked properties`} /><Stat icon={Activity} label="Pending review" value={pending + rents.filter((item) => item.adminVerificationStatus === "PENDING").length} note="Awaiting final status" /><Stat icon={FileCheck2} label="Documents" value={documents.length} note={`${documents.filter((item) => item.status === "VERIFIED").length} verified`} /></section>
     <div className="overview-grid"><section className="content-card wide"><CardHeader icon={Activity} title="Recent activity" action="View all" onClick={() => onView("bills")} />{bills.length ? <div className="activity-list">{bills.slice(0, 4).map((bill) => <article key={bill.id}><span className={`bill-icon ${bill.billType.toLowerCase()}`}>{bill.billType === "WATER" ? <Droplets /> : <Zap />}</span><div><b>{bill.billType === "WATER" ? "Water" : "Electricity"} · {bill.tenant.name}</b><small>{months[bill.billingMonth - 1]} {bill.billingYear} · Due {date(bill.dueDate)}</small></div><Status type={bill.adminVerificationStatus}>{adminLabels[bill.adminVerificationStatus]}</Status><strong>{money(bill.amount)}</strong></article>)}</div> : <EmptyState icon={ReceiptText} title="No utility records yet" text="New bills and updates will appear here." />}</section>
       <section className="content-card"><CardHeader icon={ShieldCheck} title="Rental readiness" /> <Readiness user={user} bills={bills} tenants={tenants} /></section>
     </div>
     {user.role === "MASTER_ADMIN" && <AdminSummary bills={bills} />}
-    <section className="info-strip"><article><FileCheck2 /><div><b>Agreement details</b><p>Secure agreement storage is ready for the next module.</p></div><Status type="PENDING">Not configured</Status></article><article><ShieldCheck /><div><b>ID documents</b><p>No document upload is required for utility tracking.</p></div><Status type="VERIFIED_PAID">Portal secure</Status></article></section>
+    <section className="info-strip"><button onClick={() => onView("documents")}><FileCheck2 /><div><b>E-agreement</b><p>{documents.find((item) => item.kind === "AGREEMENT")?.fileName || "Upload or review the signed rental agreement."}</p></div><ArrowRight /></button><button onClick={() => onView("documents")}><ShieldCheck /><div><b>ID proof</b><p>{documents.find((item) => item.kind === "ID_PROOF")?.fileName || "Upload or review tenant identification."}</p></div><ArrowRight /></button></section>
   </div>;
 }
 
@@ -215,6 +230,6 @@ function Avatar({ name }: { name: string }) { return <span className="avatar">{n
 function EmptyState({ icon: Icon, title, text }: { icon: typeof Home; title: string; text: string }) { return <div className="empty-state"><span><Icon /></span><h3>{title}</h3><p>{text}</p></div>; }
 function LoadingScreen() { return <div className="loading-screen"><span className="mini-logo">RW</span><Loader2 className="spin" /><p>Preparing your rental workspace…</p></div>; }
 function roleName(role: Role) { return role === "MASTER_ADMIN" ? "Master Admin" : role === "ADMIN" ? "Admin / Owner" : "Tenant / User"; }
-function viewTitle(view: View, role: Role) { if (view === "tenants") return "Tenant management"; if (view === "bills") return role === "TENANT" ? "My bills" : "Utility records"; return role === "MASTER_ADMIN" ? "Portfolio overview" : role === "ADMIN" ? "Owner dashboard" : "My rental dashboard"; }
+function viewTitle(view: View, role: Role) { if (view === "tenants") return "Tenant management"; if (view === "analytics") return role === "MASTER_ADMIN" ? "Master analytics" : "Owner analytics"; if (view === "rent") return role === "TENANT" ? "My rent" : "Rent tracking"; if (view === "documents") return role === "TENANT" ? "My documents" : "Document verification"; if (view === "bills") return role === "TENANT" ? "My bills" : "Utility records"; return role === "MASTER_ADMIN" ? "Portfolio overview" : role === "ADMIN" ? "Owner dashboard" : "My rental dashboard"; }
 function overviewHeading(role: Role) { return role === "MASTER_ADMIN" ? "Your whole rental network, at a glance." : role === "ADMIN" ? "Every tenant record, neatly under control." : "Your bills and rental status, without the guesswork."; }
 function overviewText(role: Role) { return role === "MASTER_ADMIN" ? "Monitor owner activity and payment verification across the portfolio." : role === "ADMIN" ? "Review claims, add records, and keep tenants informed from one calm workspace." : "Report payment status and follow the owner’s final verification in one clear timeline."; }

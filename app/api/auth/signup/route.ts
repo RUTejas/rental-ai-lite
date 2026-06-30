@@ -9,7 +9,7 @@ const schema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(100),
   role: z.enum(["ADMIN", "TENANT"]),
-  adminEmail: z.string().email().optional().or(z.literal(""))
+  adminId: z.string().optional().or(z.literal(""))
 });
 
 export async function POST(request: Request) {
@@ -23,9 +23,9 @@ export async function POST(request: Request) {
 
   let adminId: string | null = null;
   if (parsed.data.role === "TENANT") {
-    if (!parsed.data.adminEmail) return NextResponse.json({ error: "Enter your owner/admin email." }, { status: 400 });
+    if (!parsed.data.adminId) return NextResponse.json({ error: "Select your owner/admin." }, { status: 400 });
     const admin = await prisma.user.findFirst({
-      where: { email: parsed.data.adminEmail.toLowerCase(), role: "ADMIN", status: "APPROVED" },
+      where: { id: parsed.data.adminId, role: "ADMIN", status: "APPROVED" },
       select: { id: true }
     });
     if (!admin) return NextResponse.json({ error: "No approved owner was found with that email." }, { status: 400 });

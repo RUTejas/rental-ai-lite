@@ -46,7 +46,7 @@ async function main() {
     role: "TENANT",
     adminId: aarav.id
   });
-  await upsertUser({
+  const anaya = await upsertUser({
     name: "Anaya Tenant",
     email: "anaya.tenant@rentwise.ai",
     password: "Tenant@32345",
@@ -81,6 +81,19 @@ async function main() {
         }
       ]
     });
+  }
+
+  if ((await prisma.property.count()) === 0) {
+    const properties = await Promise.all([
+      prisma.property.create({ data: { adminId: aarav.id, tenantId: priya.id, name: "Skyline Residency", address: "12 MG Road, Bengaluru", unit: "A-204", monthlyRent: 25000 } }),
+      prisma.property.create({ data: { adminId: aarav.id, tenantId: kabir.id, name: "Lakeview Nest", address: "44 Indiranagar, Bengaluru", unit: "B-101", monthlyRent: 22000 } }),
+      prisma.property.create({ data: { adminId: meera.id, tenantId: anaya.id, name: "Green Courtyard", address: "8 Jubilee Hills, Hyderabad", unit: "C-303", monthlyRent: 28000 } })
+    ]);
+    await prisma.rentRecord.createMany({ data: [
+      { adminId: aarav.id, tenantId: priya.id, propertyId: properties[0].id, billingMonth: 6, billingYear: 2026, amount: 25000, dueDate: new Date("2026-06-05T00:00:00.000Z"), tenantPaymentStatus: "TENANT_MARKED_PAID", tenantMarkedAt: new Date(), adminVerificationStatus: "VERIFIED_PAID", adminVerifiedAt: new Date() },
+      { adminId: aarav.id, tenantId: kabir.id, propertyId: properties[1].id, billingMonth: 6, billingYear: 2026, amount: 22000, dueDate: new Date("2026-06-05T00:00:00.000Z"), adminVerificationStatus: "OVERDUE" },
+      { adminId: meera.id, tenantId: anaya.id, propertyId: properties[2].id, billingMonth: 6, billingYear: 2026, amount: 28000, dueDate: new Date("2026-06-05T00:00:00.000Z"), adminVerificationStatus: "PENDING" }
+    ] });
   }
 }
 

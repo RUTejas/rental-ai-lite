@@ -25,6 +25,10 @@ Created and Developed by Tejas R U.
 - Passwords are hashed with bcrypt and login sessions use signed, HTTP-only cookies.
 - PostgreSQL provides durable storage suitable for Vercel.
 - Invalid URLs render a branded 404 page.
+- Monthly rent records use the same tenant self-report and owner verification separation as utility bills.
+- Tenants can upload signed agreements and ID proofs (PDF/JPG/PNG, 2 MB maximum) for their linked owner to verify or reject with a reason.
+- Master Admin and Owner analytics use real scoped PostgreSQL data with rent, utility, verification, owner ranking, and document metrics.
+- Account recovery and sign-in/create-account issue forms create trackable support requests without exposing whether an email exists.
 
 ## Status model
 
