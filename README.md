@@ -14,6 +14,7 @@ Created and Developed by Tejas R U.
 ## Features
 
 - Premium public landing page with an original optimized rental hero image.
+- Premium first-time guided tour with guest and role-specific steps, spotlight animations, keyboard controls, replay, and first-party completion analytics.
 - One common sign-in form for Tenant, Owner/Admin, and Master Admin, with server-side role redirects.
 - Exactly one database-seeded Master Admin; public signup remains limited to Tenant and Owner/Admin.
 - Working owner/tenant login and signup flows with password visibility controls and role-aware redirects.

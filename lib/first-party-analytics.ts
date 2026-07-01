@@ -7,7 +7,8 @@ export const analyticsEventTypes = [
   "install_page_view", "pwa_install_button_click", "beforeinstallprompt_available", "pwa_prompt_shown",
   "pwa_install_accepted", "pwa_install_dismissed", "appinstalled_event", "standalone_launch",
   "manual_install_instructions", "download_page_view", "apk_download_click", "apk_download_redirect",
-  "entity_create", "entity_update", "entity_delete", "account_delete_request", "account_deleted"
+  "entity_create", "entity_update", "entity_delete", "account_delete_request", "account_deleted",
+  "tour_started", "tour_skipped", "tour_completed"
 ] as const;
 
 export type AnalyticsEventType = (typeof analyticsEventTypes)[number];

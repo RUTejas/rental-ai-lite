@@ -7,7 +7,7 @@ import {
   Activity, ArrowRight, BadgeIndianRupee, Bell, Building2, Check, ChevronRight,
   CircleDollarSign, Droplets, Eye, EyeOff, FileCheck2, Gauge, Home, LayoutDashboard,
   Loader2, LogOut, Menu, Pencil, Plus, ReceiptText, ShieldCheck, Sparkles,
-  Trash2, UserRound, UsersRound, WalletCards, X, Zap, BarChart3, CalendarDays, FileText, KeyRound, LifeBuoy
+  Trash2, UserRound, UsersRound, WalletCards, X, Zap, BarChart3, CalendarDays, FileText, KeyRound, LifeBuoy, CircleHelp
 } from "lucide-react";
 import { AnalyticsView, DocumentsView, RentView, type AnalyticsData, type RentalDocumentData, type RentData } from "@/components/rental-workflows";
 import { MasterAdminConsole } from "@/components/master-admin-console";
@@ -16,6 +16,7 @@ import { RecordCleanup } from "@/components/record-cleanup";
 import { AIAssistant, NotificationCenter, UsageTracker } from "@/components/ai-assistant";
 import { CalendarView, ComplaintsView, NoticesView, ReceiptsView, RoleInsights } from "@/components/value-features";
 import { FirstPartyAnalyticsView } from "@/components/first-party-analytics";
+import { GuidedTour } from "@/components/tour/guided-tour";
 
 type Role = "MASTER_ADMIN" | "ADMIN" | "TENANT";
 type SessionUser = { id: string; name: string; email: string; role: Role };
@@ -61,6 +62,7 @@ export function RentWiseApp() {
   const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "support" | "help" | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
+  const [tourReplayToken, setTourReplayToken] = useState(0);
 
   const notify = useCallback((type: "success" | "error", text: string) => {
     setToast({ type, text }); window.setTimeout(() => setToast(null), 4200);
@@ -100,6 +102,8 @@ export function RentWiseApp() {
     setUser(null); setBills([]); setTenants([]); setRents([]); setDocuments([]); setAnalytics(null); setView("overview"); setMobileNav(false); setBusy(false);
     window.history.replaceState({}, "", "/"); notify("success", "You have signed out safely.");
   }
+  const navigateTour = useCallback((next: string) => setView(next as View), []);
+  const replayTour = useCallback(() => setTourReplayToken((current) => current + 1), []);
 
   if (initializing) return <LoadingScreen />;
   return (
@@ -107,32 +111,33 @@ export function RentWiseApp() {
       {user ? (
         <Dashboard
           user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} view={view} mobileNav={mobileNav}
-          setMobileNav={setMobileNav} setView={setView} onLogout={logout} onNotify={notify}
+          setMobileNav={setMobileNav} setView={setView} onLogout={logout} onNotify={notify} onReplayTour={replayTour}
           setBills={setBills} setTenants={setTenants} setRents={setRents} setDocuments={setDocuments} setAnalytics={setAnalytics}
         />
-      ) : <Landing onAuth={setAuthMode} />}
+      ) : <Landing onAuth={setAuthMode} onReplayTour={replayTour} />}
       {authMode && <AuthModal mode={authMode} setMode={setAuthMode} busy={busy} onSubmit={authenticate} onNotify={notify} />}
       {busy && <div className="global-busy"><Loader2 size={22} className="spin" /> Working…</div>}
       {toast && <div className={`toast toast-${toast.type}`} role="status">{toast.type === "success" ? <Check size={18} /> : <Activity size={18} />}{toast.text}</div>}
+      <GuidedTour role={user?.role || "GUEST"} userId={user?.id} replayToken={tourReplayToken} onNavigate={user ? navigateTour : undefined} onMenuChange={user ? setMobileNav : undefined} />
     </>
   );
 }
 
-function Landing({ onAuth }: { onAuth: (mode: "login" | "signup" | "forgot" | "support" | "help") => void }) {
+function Landing({ onAuth, onReplayTour }: { onAuth: (mode: "login" | "signup" | "forgot" | "support" | "help") => void; onReplayTour: () => void }) {
   const scroll = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   return <main className="landing">
-    <nav className="landing-nav">
+    <nav className="landing-nav" data-tour="landing-navigation">
       <button className="brand-button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><span>RW</span><b>RentWise Lite</b></button>
       <div><button onClick={() => scroll("features")}>Features</button><button onClick={() => scroll("roles")}>For every role</button><button onClick={() => scroll("how")}>How it works</button><Link className="landing-link" href="/install">Install app</Link></div>
-      <div className="nav-actions"><button className="ghost-btn" onClick={() => onAuth("login")}>Sign in</button><button className="gold-btn" onClick={() => onAuth("signup")}>Create account <ArrowRight size={16} /></button></div>
+      <div className="nav-actions" data-tour="landing-auth"><button className="ghost-btn" onClick={() => onAuth("login")}>Sign in</button><button className="gold-btn" onClick={() => onAuth("signup")}>Create account <ArrowRight size={16} /></button></div>
     </nav>
-    <section className="hero">
+    <section className="hero" data-tour="landing-hero">
       <Image src="/rentwise-hero.png" alt="Warm contemporary rental apartment" fill priority sizes="100vw" />
       <div className="hero-shade" />
       <div className="hero-copy"><p className="kicker"><Sparkles size={15} /> Rental management, beautifully clear</p><h1>Your home records,<br /><em>finally in order.</em></h1><p>One calm place for owners and tenants to track utility bills, payment claims, verification, and rental readiness.</p><div className="hero-actions"><button className="gold-btn large" onClick={() => onAuth("signup")}>Start managing <ArrowRight size={18} /></button><button className="glass-btn" onClick={() => onAuth("login")}><Eye size={18} /> View demo</button></div></div>
       <div className="hero-proof"><span><ShieldCheck /> Role-protected</span><span><Zap /> Real-time records</span><span><FileCheck2 /> Clear audit trail</span></div>
     </section>
-    <section className="feature-section" id="features"><p className="kicker">Made for real rental life</p><div className="section-title"><h2>Less chasing. More certainty.</h2><p>Every action has a clear owner, timestamp, status, and next step.</p></div><div className="feature-grid">
+    <section className="feature-section" id="features" data-tour="landing-features"><p className="kicker">Made for real rental life</p><div className="section-title"><h2>Less chasing. More certainty.</h2><p>Every action has a clear owner, timestamp, status, and next step.</p></div><div className="feature-grid">
       <Feature icon={ReceiptText} title="Utility bill clarity" text="Electricity and water records with separate tenant claims and owner verification." />
       <Feature icon={UsersRound} title="Scoped tenant access" text="Owners see only their tenants. Tenants see only their own records." />
       <Feature icon={Gauge} title="Useful dashboards" text="Live counts, payment states, and attention items instead of blank screens." />
@@ -143,7 +148,7 @@ function Landing({ onAuth }: { onAuth: (mode: "login" | "signup" | "forgot" | "s
       <RoleCard icon={UserRound} label="Tenant / User" text="See bills, add notes, and report paid or unpaid status." onClick={() => onAuth("login")} />
     </div></section>
     <section className="how-section" id="how"><div><p className="kicker">A clean four-step record</p><h2>From bill to verified status.</h2></div>{["Owner adds a bill", "Tenant reports payment", "Owner verifies the claim", "Records stay auditable"].map((step, index) => <article key={step}><span>0{index + 1}</span><b>{step}</b></article>)}</section>
-    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><div className="footer-links"><Link href="/install">Install</Link><Link href="/privacy-policy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/contact-support">Support</Link><Link href="/delete-account">Delete account</Link><button onClick={() => onAuth("help")}>Troubleshooting</button></div><small>Created and Developed by Tejas R U</small></footer>
+    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><div className="footer-links"><Link href="/install" data-tour="landing-install">Install</Link><Link href="/privacy-policy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/contact-support">Support</Link><Link href="/delete-account">Delete account</Link><button onClick={() => onAuth("help")}>Troubleshooting</button><button onClick={onReplayTour}>Start App Guide</button></div><small>Created and Developed by Tejas R U</small></footer>
   </main>;
 }
 
@@ -174,9 +179,9 @@ function AuthModal({ mode, setMode, busy, onSubmit, onNotify }: { mode: "login" 
   </section></div>;
 }
 
-function Dashboard({ user, bills, tenants, rents, documents, analytics, view, mobileNav, setMobileNav, setView, onLogout, onNotify, setBills, setTenants, setRents, setDocuments }: {
+function Dashboard({ user, bills, tenants, rents, documents, analytics, view, mobileNav, setMobileNav, setView, onLogout, onNotify, onReplayTour, setBills, setTenants, setRents, setDocuments }: {
   user: SessionUser; bills: Bill[]; tenants: Person[]; rents: RentData[]; documents: RentalDocumentData[]; analytics: AnalyticsData | null; view: View; mobileNav: boolean;
-  setMobileNav: (open: boolean) => void; setView: (view: View) => void; onLogout: () => void;
+  setMobileNav: (open: boolean) => void; setView: (view: View) => void; onLogout: () => void; onReplayTour: () => void;
   onNotify: (type: "success" | "error", text: string) => void; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; setTenants: React.Dispatch<React.SetStateAction<Person[]>>; setRents: React.Dispatch<React.SetStateAction<RentData[]>>; setDocuments: React.Dispatch<React.SetStateAction<RentalDocumentData[]>>; setAnalytics: React.Dispatch<React.SetStateAction<AnalyticsData | null>>;
 }) {
   const nav = [{ id: "overview" as View, label: user.role === "MASTER_ADMIN" ? "Command center" : "Overview", icon: LayoutDashboard }, ...(user.role !== "TENANT" ? [{ id: "analytics" as View, label: "Analytics", icon: BarChart3 }] : []), ...(user.role === "MASTER_ADMIN" ? [{ id: "usage" as View, label: "Live usage", icon: Gauge }, { id: "owners" as View, label: "Owners", icon: Building2 }, { id: "master-tenants" as View, label: "All tenants", icon: UsersRound }, { id: "support" as View, label: "Issue reports", icon: LifeBuoy }, { id: "activity" as View, label: "Activity logs", icon: Activity }, { id: "deleted" as View, label: "Deleted Records", icon: Trash2 }] : []), { id: "rent" as View, label: user.role === "TENANT" ? "My rent" : "Rent tracking", icon: WalletCards }, { id: "bills" as View, label: user.role === "TENANT" ? "My bills" : user.role === "MASTER_ADMIN" ? "All utility bills" : "Utility bills", icon: ReceiptText }, { id: "documents" as View, label: user.role === "TENANT" ? "My document vault" : "Document vault", icon: FileText }, { id: "complaints" as View, label: "Complaints", icon: Activity }, { id: "notices" as View, label: "Notice board", icon: Bell }, { id: "receipts" as View, label: "Rent receipts", icon: BadgeIndianRupee }, { id: "calendar" as View, label: "Calendar", icon: CalendarDays }, ...(user.role === "ADMIN" ? [{ id: "tenants" as View, label: "Tenants", icon: UsersRound }] : [])];
@@ -184,20 +189,20 @@ function Dashboard({ user, bills, tenants, rents, documents, analytics, view, mo
   return <div className="dashboard-shell">
     <aside className={`dashboard-sidebar ${mobileNav ? "open" : ""} ${user.role === "MASTER_ADMIN" ? "master-sidebar" : ""}`}><div className="dash-brand"><span>RW</span><div><b>RentWise Lite</b><small>{user.role === "MASTER_ADMIN" ? "Command authority" : "Rental clarity"}</small></div><button className="icon-button mobile-close" onClick={() => setMobileNav(false)} aria-label="Close menu"><X /></button></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => changeView(id)}><Icon size={19} />{label}</button>)}</nav><div className="side-help"><Sparkles size={18} /><b>{user.role === "MASTER_ADMIN" ? "Protected command center" : "Clear records, calmer rentals."}</b><p>{user.role === "MASTER_ADMIN" ? "Every privileged action is role-checked and audited." : "Every status is visible to the right people."}</p></div><div className="side-user"><Avatar name={user.name} /><div><b>{user.name}</b><small>{roleName(user.role)}</small></div><button className="icon-button" onClick={onLogout} aria-label="Sign out"><LogOut size={18} /></button></div></aside>
     {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
-    <main className="dashboard-main"><header className="dash-topbar"><button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu /></button><div><p>{roleName(user.role)} portal</p><h1>{viewTitle(view, user.role)}</h1></div><div className="top-actions"><NotificationCenter /><Avatar name={user.name} /></div></header>
+    <main className="dashboard-main"><header className="dash-topbar"><button className="icon-button menu-button" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu /></button><div><p>{roleName(user.role)} portal</p><h1>{viewTitle(view, user.role)}</h1></div><div className="top-actions"><button className="icon-button guide-button" data-tour="guide-replay" onClick={onReplayTour} aria-label="Replay app guide" title="Replay app guide"><CircleHelp /></button><NotificationCenter /><Avatar name={user.name} /></div></header>
       <UsageTracker page={`/${user.role.toLowerCase()}/${view}`} />
-      {view === "overview" && (user.role === "MASTER_ADMIN" ? <MasterAdminConsole mode="overview" analytics={analytics} notify={onNotify} /> : <Overview user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} onView={changeView} />)}
-      {view === "analytics" && user.role !== "TENANT" && <AnalyticsView data={analytics} role={user.role} notify={onNotify} />}
-      {view === "usage" && user.role === "MASTER_ADMIN" && <FirstPartyAnalyticsView notify={onNotify} />}
-      {view === "rent" && <RentView role={user.role} rents={rents} setRents={setRents} tenants={tenants} properties={analytics?.properties || []} notify={onNotify} />}
-      {view === "bills" && <BillsView user={user} bills={bills} tenants={tenants} setBills={setBills} onNotify={onNotify} />}
-      {view === "documents" && <DocumentsView role={user.role} documents={documents} setDocuments={setDocuments} notify={onNotify} />}
+      {view === "overview" && (user.role === "MASTER_ADMIN" ? <div className="tour-view-target" data-tour="master-overview"><MasterAdminConsole mode="overview" analytics={analytics} notify={onNotify} /></div> : <Overview user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} onView={changeView} />)}
+      {view === "analytics" && user.role !== "TENANT" && <div className="tour-view-target" data-tour="analytics-section"><AnalyticsView data={analytics} role={user.role} notify={onNotify} /></div>}
+      {view === "usage" && user.role === "MASTER_ADMIN" && <div className="tour-view-target" data-tour="live-usage-section"><FirstPartyAnalyticsView notify={onNotify} /></div>}
+      {view === "rent" && <div className="tour-view-target" data-tour="rent-section"><RentView role={user.role} rents={rents} setRents={setRents} tenants={tenants} properties={analytics?.properties || []} notify={onNotify} /></div>}
+      {view === "bills" && <div className="tour-view-target" data-tour="bills-section"><BillsView user={user} bills={bills} tenants={tenants} setBills={setBills} onNotify={onNotify} /></div>}
+      {view === "documents" && <div className="tour-view-target" data-tour="documents-section"><DocumentsView role={user.role} documents={documents} setDocuments={setDocuments} notify={onNotify} /></div>}
       {view === "complaints" && <ComplaintsView role={user.role} notify={onNotify} />}
       {view === "notices" && <NoticesView role={user.role} notify={onNotify} />}
       {view === "receipts" && <ReceiptsView role={user.role} notify={onNotify} />}
       {view === "calendar" && <CalendarView rents={rents} bills={bills} documents={documents} />}
-      {view === "tenants" && user.role === "ADMIN" && <TenantDirectory tenants={tenants} setTenants={setTenants} onNotify={onNotify} />}
-      {user.role === "MASTER_ADMIN" && (view === "owners" || view === "master-tenants" || view === "support" || view === "activity" || view === "deleted") && <MasterAdminConsole mode={view} analytics={analytics} notify={onNotify} />}
+      {view === "tenants" && user.role === "ADMIN" && <div className="tour-view-target" data-tour="tenants-section"><TenantDirectory tenants={tenants} setTenants={setTenants} onNotify={onNotify} /></div>}
+      {user.role === "MASTER_ADMIN" && (view === "owners" || view === "master-tenants" || view === "support" || view === "activity" || view === "deleted") && <div className="tour-view-target" data-tour={`${view}-section`}><MasterAdminConsole mode={view} analytics={analytics} notify={onNotify} /></div>}
       {view !== "deleted" && <RecordCleanup user={user} bills={bills} rents={rents} documents={documents} tenants={tenants} properties={analytics?.properties || []} notify={onNotify} removeBill={(id) => setBills((current) => current.filter((item) => item.id !== id))} removeRent={(id) => setRents((current) => current.filter((item) => item.id !== id))} removeDocument={(id) => setDocuments((current) => current.filter((item) => item.id !== id))} removeTenant={(id) => setTenants((current) => current.filter((item) => item.id !== id))} />}
       <footer className="dash-footer">RentWise Lite · Manual status tracking only · Created and Developed by Tejas R U</footer>
     </main>

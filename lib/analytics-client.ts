@@ -2,7 +2,8 @@ export type ClientAnalyticsEvent =
   | "page_view" | "app_open" | "session_start" | "heartbeat" | "install_page_view"
   | "pwa_install_button_click" | "beforeinstallprompt_available" | "pwa_prompt_shown"
   | "pwa_install_accepted" | "pwa_install_dismissed" | "appinstalled_event" | "standalone_launch"
-  | "manual_install_instructions" | "download_page_view" | "apk_download_click" | "account_delete_request";
+  | "manual_install_instructions" | "download_page_view" | "apk_download_click" | "account_delete_request"
+  | "tour_started" | "tour_skipped" | "tour_completed";
 
 const visitorKey = "rentwise_analytics_visitor_id";
 const sessionKey = "rentwise_analytics_session_id";

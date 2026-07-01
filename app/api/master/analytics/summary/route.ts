@@ -65,7 +65,10 @@ export async function GET() {
       appinstalledEvents: eventCount.appinstalled_event || 0,
       standaloneLaunches: eventCount.standalone_launch || 0,
       apkDownloadClicks: eventCount.apk_download_click || 0,
-      apkDownloadRedirects: eventCount.apk_download_redirect || 0
+      apkDownloadRedirects: eventCount.apk_download_redirect || 0,
+      tourStarted: eventCount.tour_started || 0,
+      tourSkipped: eventCount.tour_skipped || 0,
+      tourCompleted: eventCount.tour_completed || 0
     },
     topPages: countBy(pageViews, (item) => item.path).slice(0, 12),
     deviceBreakdown: countBy(thirtyDaySessions, (item) => item.deviceType),
