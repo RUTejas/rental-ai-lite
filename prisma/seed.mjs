@@ -13,18 +13,38 @@ async function upsertUser({ name, email, password, role, adminId = null }) {
 }
 
 async function main() {
-  const masterEmail = process.env.MASTER_ADMIN_ALLOWED_EMAIL || process.env.MASTER_ADMIN_EMAIL;
-  const masterPassword = process.env.MASTER_ADMIN_PASSWORD;
+  const masterEmail = process.env.MASTER_ADMIN_EMAIL || process.env.MASTER_ADMIN_ALLOWED_EMAIL;
+  const masterPassword =
+    process.env.MASTER_ADMIN_INITIAL_PASSWORD || process.env.MASTER_ADMIN_PASSWORD;
+  const masterAdmins = await prisma.user.findMany({
+    where: { role: "MASTER_ADMIN" },
+    select: { id: true, email: true }
+  });
+
+  if (masterAdmins.length > 1) {
+    throw new Error("More than one MASTER_ADMIN exists. Resolve the duplicate records before deploying.");
+  }
+  if ((masterEmail && !masterPassword) || (!masterEmail && masterPassword)) {
+    throw new Error("Set both MASTER_ADMIN_EMAIL and MASTER_ADMIN_INITIAL_PASSWORD.");
+  }
   if (masterEmail && masterPassword) {
     if (masterPassword.length < 12 || !/[a-z]/.test(masterPassword) || !/[A-Z]/.test(masterPassword) || !/\d/.test(masterPassword) || !/[^A-Za-z0-9]/.test(masterPassword)) {
-      throw new Error("MASTER_ADMIN_PASSWORD must contain 12+ characters, upper/lowercase letters, a number, and a symbol.");
+      throw new Error("MASTER_ADMIN_INITIAL_PASSWORD must contain 12+ characters, upper/lowercase letters, a number, and a symbol.");
     }
-    const existingMaster = await prisma.user.findFirst({ where: { role: "MASTER_ADMIN" }, select: { id: true } });
+    const existingMaster = masterAdmins[0];
+    const normalizedMasterEmail = masterEmail.toLowerCase();
+    const emailOwner = await prisma.user.findUnique({
+      where: { email: normalizedMasterEmail },
+      select: { id: true, role: true }
+    });
+    if (emailOwner && emailOwner.id !== existingMaster?.id) {
+      throw new Error(`MASTER_ADMIN_EMAIL is already used by a ${emailOwner.role} account.`);
+    }
     const passwordHash = await bcrypt.hash(masterPassword, 12);
     if (existingMaster) {
-      await prisma.user.update({ where: { id: existingMaster.id }, data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, status: "ACTIVE", isDeleted: false, deletedAt: null, deletedBy: null, deletedByRole: null, deleteReason: null } });
+      await prisma.user.update({ where: { id: existingMaster.id }, data: { name: "Master Admin", email: normalizedMasterEmail, passwordHash, status: "ACTIVE", isDeleted: false, deletedAt: null, deletedBy: null, deletedByRole: null, deleteReason: null } });
     } else {
-      await prisma.user.create({ data: { name: "Master Admin", email: masterEmail.toLowerCase(), passwordHash, role: "MASTER_ADMIN", status: "ACTIVE" } });
+      await prisma.user.create({ data: { name: "Master Admin", email: normalizedMasterEmail, passwordHash, role: "MASTER_ADMIN", status: "ACTIVE" } });
     }
   }
 

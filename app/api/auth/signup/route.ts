@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ pending: true, message: "Your owner account was submitted for Master Admin approval." }, { status: 201 });
   }
   if (adminId) await prisma.notification.create({ data: { userId: adminId, title: "New tenant registered", message: `${user.name} linked their account to you.`, type: "TENANT_REGISTRATION" } });
-  const sessionId = await startUserSession(user, request, "/tenant-dashboard");
+  const sessionId = await startUserSession(user, request, "/user/dashboard");
   await createSession(user, sessionId);
-  return NextResponse.json({ user }, { status: 201 });
+  return NextResponse.json({ user, redirectTo: "/user/dashboard" }, { status: 201 });
 }

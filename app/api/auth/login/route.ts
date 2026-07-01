@@ -23,9 +23,6 @@ export async function POST(request: Request) {
   if (!user || user.isDeleted || !(await bcrypt.compare(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
-  if (user.role === "MASTER_ADMIN") {
-    return NextResponse.json({ error: "This account cannot use public sign-in." }, { status: 403 });
-  }
   if (user.status === "BLOCKED") {
     return NextResponse.json({ error: "This account is blocked. Contact Master Admin support." }, { status: 403 });
   }
@@ -33,14 +30,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This account is awaiting Master Admin approval." }, { status: 403 });
   }
 
+  if (!["MASTER_ADMIN", "ADMIN", "TENANT"].includes(user.role)) {
+    return NextResponse.json({ error: "This account does not have a valid access role." }, { status: 403 });
+  }
+  const redirectTo = user.role === "MASTER_ADMIN" ? "/master-admin/dashboard" : user.role === "ADMIN" ? "/admin/dashboard" : "/user/dashboard";
   const sessionUser = {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role
   };
-  const sessionId = await startUserSession(user, request, user.role === "ADMIN" ? "/owner-dashboard" : "/tenant-dashboard");
+  const sessionId = await startUserSession(user, request, redirectTo);
   await createSession(sessionUser, sessionId);
   await logActivity({ actorId: user.id, actorRole: user.role, action: "LOGIN", targetId: user.id, targetType: "USER", description: `${user.name} signed in.` });
-  return NextResponse.json({ user: sessionUser });
+  return NextResponse.json({ user: sessionUser, redirectTo });
 }

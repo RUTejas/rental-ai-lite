@@ -1,10 +1,7 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireRole } from "@/lib/authorization";
 import { RentWiseApp } from "@/components/rentwise-app";
 
 export default async function MasterAdminDashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/unauthorized");
-  if (user.role !== "MASTER_ADMIN") redirect("/unauthorized");
+  await requireRole(["MASTER_ADMIN"]);
   return <RentWiseApp />;
 }

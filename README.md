@@ -14,8 +14,8 @@ Created and Developed by Tejas R U.
 ## Features
 
 - Premium public landing page with an original optimized rental hero image.
-- Separate Master Admin secure access at `/master-admin`; public signup remains limited to Tenant and Owner/Admin.
-- One-time Master Admin setup and protected password recovery use a server-held setup key and close after the first Master Admin is created.
+- One common sign-in form for Tenant, Owner/Admin, and Master Admin, with server-side role redirects.
+- Exactly one database-seeded Master Admin; public signup remains limited to Tenant and Owner/Admin.
 - Working owner/tenant login and signup flows with password visibility controls and role-aware redirects.
 - Reusable responsive sidebar navigation, stats cards, status badges, data tables, empty states, modals, loading indicators, and toasts.
 - Admins create electricity and water bills for tenants assigned to their account.
@@ -77,11 +77,8 @@ Set these values in `.env` before running the database commands:
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 SESSION_SECRET="a-long-random-secret"
-MASTER_ADMIN_ALLOWED_EMAIL="master-admin@example.com"
-MASTER_ADMIN_PASSWORD="a-unique-strong-password"
-MASTER_ADMIN_SETUP_KEY="a-separate-random-setup-and-recovery-key"
-MASTER_ADMIN_INVITE_CODE="an-optional-separate-one-time-invite-code"
-MASTER_ADMIN_CREATION_ENABLED="false"
+MASTER_ADMIN_EMAIL="master-admin@example.com"
+MASTER_ADMIN_INITIAL_PASSWORD="a-unique-strong-password"
 ```
 
 Generate a suitable session secret in PowerShell with:
@@ -102,7 +99,7 @@ After `npm run db:seed`, use:
 | Tenant | `kabir.tenant@rentwise.ai` | `Tenant@22345` |
 | Tenant | `anaya.tenant@rentwise.ai` | `Tenant@32345` |
 
-The seed creates or updates the single Master Admin only when `MASTER_ADMIN_ALLOWED_EMAIL` and `MASTER_ADMIN_PASSWORD` are configured. The private `/master-admin` route accepts only that allowlisted email. For first-time web setup, temporarily set `MASTER_ADMIN_CREATION_ENABLED=true`; setup permanently closes after the account exists, then set the flag back to `false`. Never expose these values in client code.
+The seed creates or updates the single Master Admin when `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_INITIAL_PASSWORD` are configured. All roles use the same public sign-in form; the server redirects users according to their database role. Never expose these values in client code.
 
 ## Test the complete bill flow
 
@@ -114,7 +111,7 @@ The seed creates or updates the single Master Admin only when `MASTER_ADMIN_ALLO
 6. Sign back in as Aarav Owner. Confirm the tenant status, marked date, and note are visible.
 7. Add an admin note and choose **Verify as Paid**, **Mark Unpaid**, **Mark Overdue**, **Reject Claim**, or **Waive Bill**.
 8. Sign back in as Priya and confirm the final owner status and note are visible.
-9. Open `/master-admin`, sign in with the protected Master Admin credentials, and confirm the record appears in **All Utility Bills** and the global metrics.
+9. Use the common sign-in form with the Master Admin credentials, confirm redirect to `/master-admin/dashboard`, and verify the record appears in **All Utility Bills** and the global metrics.
 10. Sign in as Meera Owner and confirm Aarav’s tenants and bills are not visible.
 
 The API independently checks these boundaries; hiding controls in the interface is not the security mechanism.
@@ -134,7 +131,7 @@ The API independently checks these boundaries; hiding controls in the interface 
 4. Go to Vercel and click **Add New Project**.
 5. Import the GitHub repository. Keep the repository root as the Root Directory.
 6. Confirm the Framework Preset is **Next.js**.
-7. Add `DATABASE_URL`, `SESSION_SECRET`, `MASTER_ADMIN_ALLOWED_EMAIL`, `MASTER_ADMIN_PASSWORD`, `MASTER_ADMIN_SETUP_KEY`, and `MASTER_ADMIN_CREATION_ENABLED=false` in **Project Settings → Environment Variables**. Use different high-entropy values for the password and setup key.
+7. Add `DATABASE_URL`, `SESSION_SECRET`, `MASTER_ADMIN_EMAIL`, and `MASTER_ADMIN_INITIAL_PASSWORD` in **Project Settings → Environment Variables**. Use a unique high-entropy password.
 8. Click **Deploy**.
 
 `vercel.json` supplies the install, development, and build commands. After deployment, no long-running backend service is required: authentication and bill operations run as Next.js route handlers on Vercel.
@@ -151,8 +148,8 @@ npm run start
 
 ## Master Admin security notes
 
-- General `/api/auth/login` rejects Master Admin accounts; they can authenticate only through `/api/auth/master/login`.
+- `/api/auth/login` authenticates all roles and chooses the redirect from the database role; it never accepts a client-selected login role.
 - `/master-admin/dashboard` performs a server-side role check before rendering, and every Master API repeats the role check.
 - Owner signup creates a `PENDING` account. Master Admin approval changes it to `ACTIVE`; `BLOCKED` accounts cannot establish or retain a valid session.
-- The setup key or invite code is compared server-side and is never returned by an API.
+- Public signup accepts only `ADMIN` or `TENANT`; the database and seed enforce one `MASTER_ADMIN`.
 - Usage analytics intentionally exclude raw IP addresses, passwords, document contents, and unrelated browsing activity.

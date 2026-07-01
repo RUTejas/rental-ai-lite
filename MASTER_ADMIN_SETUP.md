@@ -1,51 +1,46 @@
-# Real Master Admin setup and access
+# Master Admin setup and access
 
-Master Admin access no longer depends on demo accounts. Public signup accepts only `ADMIN` or `TENANT`; the database migration also enforces one `MASTER_ADMIN` row.
+RentWise Lite uses one public sign-in form for tenants, admins, and the Master Admin. The server reads the authenticated account's database role and sends it to the correct dashboard. There is no hidden login URL, query-string key, or browser-visible Master Admin secret.
 
-## Required Vercel environment variables
+## Required environment variables
 
-Set these for Production (and Preview only if intentionally testing there):
+Set these in Vercel Production (and Preview only when you intentionally test there):
 
 ```text
 DATABASE_URL=postgresql://...
 SESSION_SECRET=<at least 32 random characters>
 MASTER_ADMIN_EMAIL=<real owner email>
-MASTER_ADMIN_PASSWORD=<12+ chars with upper/lowercase, number, symbol>
-MASTER_ADMIN_SECRET_KEY=<long random hidden-route key>
-MASTER_ADMIN_SETUP_KEY=<different long random recovery/setup key>
-MASTER_ADMIN_CREATION_ENABLED=false
+MASTER_ADMIN_INITIAL_PASSWORD=<12+ characters with upper/lowercase, number, symbol>
 ```
 
 Never prefix secrets with `NEXT_PUBLIC_`.
 
-## Create or update the production account with the seed
+## Create or update the single Master Admin
 
-After setting the environment variables:
+Run:
 
 ```powershell
 npm run db:seed
 ```
 
-The seed creates the first Master Admin if none exists; otherwise it updates that one account's email/password from the environment. Vercel's configured build command runs migrations and this seed before `next build`.
+The seed creates the Master Admin when none exists, or updates the existing Master Admin's email and password. It stops with an error if the database already contains more than one Master Admin or the configured email belongs to another account. A database unique index also prevents a second Master Admin.
 
-An alternative first-time UI setup exists only when `MASTER_ADMIN_CREATION_ENABLED=true`, no Master Admin exists, the hidden portal key is valid, and the separate setup key is entered. Turn creation back to `false` immediately afterward.
+For compatibility during migration, the seed accepts the old `MASTER_ADMIN_PASSWORD` variable only when `MASTER_ADMIN_INITIAL_PASSWORD` is absent. Add the new variable and remove the old one after a successful deployment.
 
 ## Sign in
 
-Open this private URL (never publish it in navigation or screenshots):
+Open:
 
 ```text
-https://rental-ai-lite.vercel.app/master-admin-login?key=YOUR_SECRET_KEY
+https://rental-ai-lite.vercel.app/
 ```
 
-A correct key creates a short-lived HttpOnly portal grant and removes the key from the visible address. Then sign in with `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD`. Success redirects to `/master-admin/dashboard`. Missing/wrong keys return the not-found page; users/admins are denied; direct unauthenticated dashboard access does not expose the portal.
+Choose **Sign in**, then enter the Master Admin email and password. Successful authentication redirects to `/master-admin/dashboard`. Admins go to `/admin/dashboard`; tenants go to `/user/dashboard`.
 
-## Password, key rotation, and recovery
+Public signup can create only Admin or Tenant accounts. It cannot create or promote a Master Admin.
 
-- Change password: update `MASTER_ADMIN_PASSWORD`, redeploy/run `npm run db:seed`, or use the protected reset form with `MASTER_ADMIN_SETUP_KEY`.
-- Rotate hidden URL: replace `MASTER_ADMIN_SECRET_KEY` in Vercel and redeploy. Existing portal grants expire after 15 minutes.
-- Rotate recovery: replace `MASTER_ADMIN_SETUP_KEY` and redeploy.
-- Locked out after repeated attempts: wait 15 minutes, verify the Vercel variables, then reseed through a trusted deployment environment.
-- Lost database access: restore the database/credentials first; no frontend bypass exists.
+## Password recovery and rotation
 
-Demo owner/tenant credentials seed sample rental data and use the normal public sign-in. They cannot become Master Admin, use the hidden API, or access the Master Admin dashboard.
+Update `MASTER_ADMIN_INITIAL_PASSWORD` in Vercel and redeploy. The build seed hashes the new value and updates the one Master Admin record. After confirming the new password works, keep the value private and rotate it whenever access may have been exposed.
+
+The retired variables `MASTER_ADMIN_SECRET_KEY`, `MASTER_ADMIN_SETUP_KEY`, `MASTER_ADMIN_INVITE_CODE`, and `MASTER_ADMIN_CREATION_ENABLED` are no longer used and can be deleted from Vercel after this version is deployed successfully.
