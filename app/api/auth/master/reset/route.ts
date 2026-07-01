@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
 import { isStrongPassword, secretMatches, strongPasswordSchemaMessage } from "@/lib/security";
-import { allowedMasterEmail, masterLoginError } from "@/lib/master-security";
+import { allowedMasterEmail, hasMasterPortalGrant, masterLoginError } from "@/lib/master-security";
 
 const schema = z.object({
   email: z.string().email(),
@@ -13,6 +13,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!(await hasMasterPortalGrant())) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: strongPasswordSchemaMessage }, { status: 400 });
   const email = parsed.data.email.toLowerCase();

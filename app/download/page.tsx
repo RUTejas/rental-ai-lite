@@ -1,0 +1,8 @@
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { DownloadClient } from "@/components/download-client";
+import { PublicHero, PublicShell } from "@/components/public-shell";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Android Download" };
+export default function DownloadPage() { const available = Boolean(process.env.ANDROID_APK_URL); const version = process.env.NEXT_PUBLIC_ANDROID_APK_VERSION; return <PublicShell><PublicHero eyebrow="Optional Android distribution" title="Android APK download" text="The browser-installed PWA is the recommended method. APK sideloading is available only when an official release URL has been configured." /><section className="public-content"><DownloadClient available={available} version={version} /><section className="warning-card"><AlertTriangle /><div><h2>Before sideloading</h2><ul><li>Only install APKs linked from this official page or an official RentWise Lite GitHub Release.</li><li>Android may ask permission to install apps from your browser or file manager.</li><li>Disable “install unknown apps” permission after installation if you enabled it.</li><li>An APK download click does not prove that installation completed.</li></ul></div></section><section className="public-callout"><CheckCircle2 /><div><h2>Prefer automatic updates?</h2><p>Install the PWA directly from your browser—no APK, unknown-app permission, or manual update process.</p><Link className="primary-action compact" href="/install">Use browser installation</Link></div></section></section></PublicShell>; }

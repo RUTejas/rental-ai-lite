@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
 import { isStrongPassword, secretMatches, strongPasswordSchemaMessage } from "@/lib/security";
-import { allowedMasterEmail, masterCreationEnabled } from "@/lib/master-security";
+import { allowedMasterEmail, hasMasterPortalGrant, masterCreationEnabled } from "@/lib/master-security";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -15,11 +15,13 @@ const schema = z.object({
 }).refine((value) => value.password === value.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] });
 
 export async function GET() {
+  if (!(await hasMasterPortalGrant())) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const exists = await prisma.user.count({ where: { role: "MASTER_ADMIN", isDeleted: false } });
   return NextResponse.json({ setupAvailable: masterCreationEnabled() && Boolean(allowedMasterEmail()) && exists === 0 && Boolean(process.env.MASTER_ADMIN_SETUP_KEY || process.env.MASTER_ADMIN_INVITE_CODE) });
 }
 
 export async function POST(request: Request) {
+  if (!(await hasMasterPortalGrant())) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: strongPasswordSchemaMessage }, { status: 400 });
   const allowedEmail = allowedMasterEmail();

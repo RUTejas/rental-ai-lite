@@ -5,11 +5,12 @@ import { createSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
 import { startUserSession } from "@/lib/usage";
-import { allowedMasterEmail, isMasterLoginLocked, masterLoginError, recordMasterLoginAttempt } from "@/lib/master-security";
+import { allowedMasterEmail, hasMasterPortalGrant, isMasterLoginLocked, masterLoginError, recordMasterLoginAttempt } from "@/lib/master-security";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
 export async function POST(request: Request) {
+  if (!(await hasMasterPortalGrant())) return NextResponse.json({ error: "Not found." }, { status: 404 });
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: masterLoginError }, { status: 400 });
   const email = parsed.data.email.toLowerCase();

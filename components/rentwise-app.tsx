@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, BadgeIndianRupee, Bell, Building2, Check, ChevronRight,
@@ -13,7 +14,8 @@ import { MasterAdminConsole } from "@/components/master-admin-console";
 import { DeleteAction } from "@/components/delete-action";
 import { RecordCleanup } from "@/components/record-cleanup";
 import { AIAssistant, NotificationCenter, UsageTracker } from "@/components/ai-assistant";
-import { CalendarView, ComplaintsView, NoticesView, ReceiptsView, RoleInsights, UsageAnalyticsView } from "@/components/value-features";
+import { CalendarView, ComplaintsView, NoticesView, ReceiptsView, RoleInsights } from "@/components/value-features";
+import { FirstPartyAnalyticsView } from "@/components/first-party-analytics";
 
 type Role = "MASTER_ADMIN" | "ADMIN" | "TENANT";
 type SessionUser = { id: string; name: string; email: string; role: Role };
@@ -120,7 +122,7 @@ function Landing({ onAuth }: { onAuth: (mode: "login" | "signup" | "forgot" | "s
   return <main className="landing">
     <nav className="landing-nav">
       <button className="brand-button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}><span>RW</span><b>RentWise Lite</b></button>
-      <div><button onClick={() => scroll("features")}>Features</button><button onClick={() => scroll("roles")}>For every role</button><button onClick={() => scroll("how")}>How it works</button></div>
+      <div><button onClick={() => scroll("features")}>Features</button><button onClick={() => scroll("roles")}>For every role</button><button onClick={() => scroll("how")}>How it works</button><Link className="landing-link" href="/install">Install app</Link></div>
       <div className="nav-actions"><button className="ghost-btn" onClick={() => onAuth("login")}>Sign in</button><button className="gold-btn" onClick={() => onAuth("signup")}>Create account <ArrowRight size={16} /></button></div>
     </nav>
     <section className="hero">
@@ -140,7 +142,7 @@ function Landing({ onAuth }: { onAuth: (mode: "login" | "signup" | "forgot" | "s
       <RoleCard icon={UserRound} label="Tenant / User" text="See bills, add notes, and report paid or unpaid status." onClick={() => onAuth("login")} />
     </div></section>
     <section className="how-section" id="how"><div><p className="kicker">A clean four-step record</p><h2>From bill to verified status.</h2></div>{["Owner adds a bill", "Tenant reports payment", "Owner verifies the claim", "Records stay auditable"].map((step, index) => <article key={step}><span>0{index + 1}</span><b>{step}</b></article>)}</section>
-    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><div className="footer-links"><button onClick={() => onAuth("help")}>Troubleshooting</button><button onClick={() => onAuth("support")}>Report access issue</button></div><small>Created and Developed by Tejas R U</small></footer>
+    <footer className="landing-footer"><div><span className="mini-logo">RW</span><b>RentWise Lite</b></div><div className="footer-links"><Link href="/install">Install</Link><Link href="/privacy-policy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/contact-support">Support</Link><Link href="/delete-account">Delete account</Link><button onClick={() => onAuth("help")}>Troubleshooting</button></div><small>Created and Developed by Tejas R U</small></footer>
   </main>;
 }
 
@@ -166,7 +168,7 @@ function AuthModal({ mode, setMode, busy, onSubmit, onNotify }: { mode: "login" 
     </form>}
     {mode === "login" && <div className="demo-panel"><span>One-click demo access</span>{demos.map(([label, email, password, Icon]) => <button key={label} onClick={() => onSubmit({ email, password }, "login")} disabled={busy}><Icon size={16} />{label}</button>)}</div>}
     {mode === "login" && <div className="auth-links"><button onClick={() => setMode("forgot")}>Forgot password?</button><button onClick={() => setMode("support")}>Report sign-in issue</button></div>}
-    {(mode === "login" || mode === "signup") && <p className="auth-switch">{mode === "login" ? "New to RentWise?" : "Already registered?"} <button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "Create account" : "Sign in"}</button></p>}
+    {(mode === "login" || mode === "signup") && <><p className="auth-switch">{mode === "login" ? "New to RentWise?" : "Already registered?"} <button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "Create account" : "Sign in"}</button></p><div className="auth-legal"><Link href="/privacy-policy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/contact-support">Support</Link></div></>}
     {mode === "signup" && <div className="auth-links"><button onClick={() => setMode("forgot")}>Forgot password?</button><button onClick={() => setMode("support")}>Report account issue</button><button onClick={() => setMode("help")}>Troubleshooting</button></div>}
   </section></div>;
 }
@@ -185,7 +187,7 @@ function Dashboard({ user, bills, tenants, rents, documents, analytics, view, mo
       <UsageTracker page={`/${user.role.toLowerCase()}/${view}`} />
       {view === "overview" && (user.role === "MASTER_ADMIN" ? <MasterAdminConsole mode="overview" analytics={analytics} notify={onNotify} /> : <Overview user={user} bills={bills} tenants={tenants} rents={rents} documents={documents} analytics={analytics} onView={changeView} />)}
       {view === "analytics" && user.role !== "TENANT" && <AnalyticsView data={analytics} role={user.role} notify={onNotify} />}
-      {view === "usage" && user.role === "MASTER_ADMIN" && <UsageAnalyticsView notify={onNotify} />}
+      {view === "usage" && user.role === "MASTER_ADMIN" && <FirstPartyAnalyticsView notify={onNotify} />}
       {view === "rent" && <RentView role={user.role} rents={rents} setRents={setRents} tenants={tenants} properties={analytics?.properties || []} notify={onNotify} />}
       {view === "bills" && <BillsView user={user} bills={bills} tenants={tenants} setBills={setBills} onNotify={onNotify} />}
       {view === "documents" && <DocumentsView role={user.role} documents={documents} setDocuments={setDocuments} notify={onNotify} />}

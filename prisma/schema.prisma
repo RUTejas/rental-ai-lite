@@ -81,6 +81,8 @@ model User {
   activityLogs  ActivityLog[] @relation("ActivityActor")
   sessions      UserSession[]
   analyticsEvents UserAnalyticsEvent[]
+  analyticsSessions AnalyticsSession[]
+  firstPartyAnalyticsEvents AnalyticsEvent[]
   notifications Notification[]
   complaintsRaised Complaint[] @relation("TenantComplaints")
   complaintsManaged Complaint[] @relation("OwnerComplaints")
@@ -293,6 +295,61 @@ model UserAnalyticsEvent {
   @@index([userId])
   @@index([eventType, createdAt])
   @@index([page, createdAt])
+}
+
+model AnalyticsSession {
+  id           String   @id @default(cuid())
+  visitorId    String
+  sessionId    String   @unique
+  userId       String?
+  userRole     Role?
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  pageCount    Int      @default(0)
+  currentPath  String?
+  referrer     String?
+  deviceType   String?
+  browser      String?
+  os           String?
+  isPwa        Boolean  @default(false)
+  screenWidth  Int?
+  screenHeight Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events       AnalyticsEvent[]
+
+  @@index([visitorId])
+  @@index([userId])
+  @@index([lastSeenAt])
+  @@index([userRole])
+}
+
+model AnalyticsEvent {
+  id           String   @id @default(cuid())
+  eventType    String
+  visitorId    String
+  sessionId    String
+  userId       String?
+  userRole     Role?
+  path         String?
+  referrer     String?
+  deviceType   String?
+  browser      String?
+  os           String?
+  isPwa        Boolean  @default(false)
+  screenWidth  Int?
+  screenHeight Int?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  session      AnalyticsSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([path, createdAt])
 }
 
 model Notification {

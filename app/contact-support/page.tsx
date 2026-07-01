@@ -1,0 +1,6 @@
+import { Mail } from "lucide-react";
+import { PublicHero, PublicShell } from "@/components/public-shell";
+import { SupportForm } from "@/components/support-forms";
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Contact Support" };
+export default function ContactSupportPage() { const configured = process.env.NEXT_PUBLIC_SUPPORT_EMAIL; const email = configured || "support@example.com"; const placeholder = !configured || email.endsWith("@example.com"); return <PublicShell><PublicHero eyebrow="Account and app help" title="Contact Support" text="Report login, account, rental-record, privacy, or installation issues through the protected support queue." /><section className="public-content support-layout"><aside className="support-card"><Mail /><h2>Support contact</h2><a href={placeholder ? undefined : `mailto:${email}`}>{email}</a>{placeholder && <p className="placeholder-warning">Placeholder—set NEXT_PUBLIC_SUPPORT_EMAIL before public production use.</p>}<p>App: <a href="https://rental-ai-lite.vercel.app/">rental-ai-lite.vercel.app</a></p><p>Do not send passwords, signing keys, identity-document files, or other secrets by email.</p></aside><SupportForm /></section></PublicShell>; }
